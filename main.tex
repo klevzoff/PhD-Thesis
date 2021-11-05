@@ -1,37 +1,57 @@
-% Stanford University PhD thesis style -- modifications to the report style
-% This is unofficial so you should always double check against the
-% Registrar's office rules
-% See http://library.stanford.edu/research/bibliography-management/latex-and-bibtex
-% 
-% Example of use below
-% See the suthesis-2e.sty file for documentation
-%
 \documentclass{report}
-\usepackage{suthesis-2e}
-\dept{Energy Resources Engineering}
 
-\begin{document}
+% Use Stanford Thesis Package
+\usepackage{suthesis-2e}
+
+% Additional packages
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+
+% Set up link and citation colors
+\hypersetup{
+    colorlinks,
+    linkcolor={blue!80!black},
+    citecolor={blue!80!black},
+    urlcolor={blue!80!black}
+}
+
+% Basic thesis information
+\dept{Energy Resources Engineering}
 \title{Scalable Multiscale Solvers for Poromechanical Problems\\
 in Geological Formations}
 \author{Sergey Klevtsov}
 \principaladviser{Hamdi Tchelepi}
 \firstreader{Louis Durlofsky}
 \secondreader{Nicola Castelletto}
+
+% Enable lists of tables/figures
+\tablespagetrue
+\figurespagetrue
+
+\begin{document}
  
 \beforepreface
-\prefacesection{Preface}
-This thesis tells you all you need to know about...
-\prefacesection{Acknowledgments}
-I would like to thank...
+
+\input{abstract.tex}
+
+\input{acknowledgments}
+
 \afterpreface
 
-\chapter{Introduction}
-...
-\chapter{Conclusions}
-...
+\input{introduction.tex}
+
+\input{multiscale_poromechanics.tex}
+
+\input{geosx_framework.tex}
+
+\input{parallel_multiscale.tex}
+
+\input{conclusions.tex}
+
 \appendix
-\chapter{A Long Proof}
-...
+
 \bibliographystyle{plain}
-\bibliography{mybib}
+\bibliography{references}
+
 \end{document}
