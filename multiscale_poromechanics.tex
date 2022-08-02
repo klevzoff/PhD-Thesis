@@ -1,50 +1,936 @@
 \chapter{Multilevel Multiscale Solver for Poromechanics}
+\label{ch:multiscale_poromechanics}
+
+This chapter details the main contribution of present work --- the development of an efficient multi-level multiscale preconditioned Krylov solver tackling fluid flow and mechanical deformation in porous media. The chapter is organized as follows. \autoref{sec:related_work} presents the necessary background and related work in the area of multilevel solvers that our development builds upon. The adaptation of one of the previously developed multiscale techniques --- the Multiscale Restricted Smoothing Basis (MsRSB) method --- to the problems of interest is motivated and explained in \autoref{sec:enhanced_msrsb}.   \autoref{sec:msrsb_coarsening} deals with the complexity of constructing agglomeration-based unstructured coarse grids.   Then, in \autoref{sec:msrsb_interpolation}, procedures for the iterative construction of two types of basis functions (nodal and cell-centered) are detailed.   \autoref{sec:coupled_precond} completes development of the full preconditioner by describing our approaches to combining interpolation operators and smoothers, as well as handling of wells and transport unknowns.   Properties of the scheme are investigated in \autoref{sec:msrsb_examples} using a set of numerical examples designed to test the algorithmic scalability and robustness of the method.   Finally, the chapter concludes with a summary in \autoref{sec:msrsb_summary}.
 
 % ===================== SECTION =====================
 \section{Related Work}
+\label{sec:related_work}
+
+Various multilevel methods for accelerating solution of linear systems have been developed over the span of over 50 years, but have received particular interest in the area of subsurface modeling in the past two decades.    The most prominent types of multilevel approaches are \textit{mutligrid} (geometric and algebraic) and \textit{multiscale} methods.    This section briefly reviews the history, background and recent advancements relevant to the development of multiscale method in present work.
+
+\subsection{Multigrid Methods}
+\label{subsec:related_work_multigrid}
+
+Multigrid was first introduced in \cite{Fedorenko1962} and analyzed and extended in \cite{Fedorenko1964,Bakhvalov1966,Nicolaides1975,Brandt1977} as a way of accelerating a relaxation procedure (such as Gauss-Seidel) for a finite-difference discretization of homogeneous Poisson's equation on a structured 2D grid.   Today it one of the most efficient methods for solving a wide class of partial differential equations.   The intuition behind multigrid comes from a representation of the iteration error vector $\vec{e}^{\nu}$ as composed of ''good'' (high-frequency, oscillatory) modes that are efficiently damped by a relaxation scheme and ''bad'' (low-frequency, smooth) modes, which however become oscillatory when represented on a coarser grid.   This allows a multigrid method to achieve excellent convergence independent of the mesh size while performing only $O(N)$ work (where $N$ is the number of unknowns) by performing relaxation on a sequence of progressively coarser grids, effectively targeting all error modes.   More specifically, consider the following linear system resulting from discretizing (via finite difference, finite element or finite volume) an elliptic PDE with some unknown quantity $u$ on computational grid $\Omega^h$ with characteristic size $h$:
+\begin{align}
+    A^h \vec{u}^h = \vec{f}^h
+\end{align}
+
+Given a stationary iterative method (smoother) $S^h$, a multigrid method consists of three steps:
+\begin{enumerate}
+    \item Pre-smoothing.   Apply some number $\nu_1$ of smoother iterations to damp the high-frequency error modes.   Denoting the (unknown) true solution $\vec{u}^h_*$ and an initial guess $\vec{u}^h_0$ the smoothing process produces
+    \begin{align}
+        \vec{u}^h_1 \leftarrow S^{h,\nu_1} \vec{u}^h_0 + (I^h - S^h)\vec{u}^h_*
+    \end{align}
+    or, equivalently
+    \begin{align}
+        \vec{e}^h_1 \leftarrow S^{h,\nu_1} \vec{e}^h_0
+    \end{align}
+    i.e. the smoother acting on the error $\vec{e}^h = \vec{u}^h - \vec{u}^h_*$.
+    \item Coarse grid correction.    The fine level residual vector is transferred to the coarse level using a restriction operator $R$:
+    \begin{align}
+        \vec{r}^h_1 &= \vec{f}^h - A^h\vec{u}^h_1 \\
+        \vec{r}^H_1 &= R \vec{r}^h_1
+    \end{align}
+    The coarse level error is found by solving, exactly or approximately, a coarse representation of the linear system (to be specified) and interpolated onto the fine scale using a prolongation operator $P$:
+    \begin{align}
+        \vec{e}^H_2 &= (A^H)^{-1} \vec{r}^H_1 \\
+        \vec{e}^h_2 &= P \vec{e}^H_2
+    \end{align}
+    and the solution is updated with the correction which removes the low-frequency error components:
+    \begin{align}
+        \vec{u}^h_2 \leftarrow \vec{u}^h_1 + \vec{e}^h_2
+    \end{align}
+    \item Post-smoothing.   Apply some number $\nu_2$ of smoothing iteration again to damp the high-frequency error resulting from coarse grid correction:
+    \begin{align}
+        \vec{u}^h_3 &\leftarrow S^{h,\nu_2} \vec{u}^h_2 + (I^h - S^h)\vec{u}^h_* \\
+        \vec{e}^h_3 &\leftarrow S^{h,\nu_2} \vec{e}^h_2
+    \end{align}
+\end{enumerate}
+
+The scheme above employs just two grid levels, but when applied recursively (i.e. with multigrid as the coarse solver on second level and beyond), results in a multilevel multigrid method.   In practice, coarsening usually continues until the problem becomes amenable to a direct solution.   This may lead to scaling issues in distributed environments as there may not be enough computations at coarse levels to saturate each processor with work while global communication and synchronization are required between levels and can degrade performance; various techniques have been developed to address these issues \cite{Chow2006}.   In the standard multigrid cycle described above (known as \textit{V-cycle}) iteration begins and ends at the finest level; other types of cycles (W-cycle, F-cycle) are available that perform more relaxation at coarser levels and may have superior convergence, although they are rarely used in distributed implementations due to the aforementioned problem of poor scalability at coarse levels.
+
+Flavors of multigrid methods differ primarily in how they construct coarse ''grids'', grid transfer operators $P$ and $R$ as well the the coarse system matrix $A^H$.   In \textit{geometric} multigrid, the coarse problem is derived from underlying geometry of the fine-scale grid (which is expected to be simple, e.g. structured/Cartesian).   $P$ can be defined via simple multilinear interpolation, although this yields poor convergence for problems with sharp material contrasts; more advanced approaches, such as \textit{operator-induced} grid transfer \cite{Alcouffe1981}, are preferred in that case.   $R$ is commonly related to $P$ via transposition:
+\begin{align}
+    R = \alpha P^T
+\end{align}
+with $\alpha$ some constant (often 1.0).   The coarse-grid operator $A^H$ can be obtained by discretizing the underlying PDE on the coarse level.   This approach is disadvantageous, since the linear solution process has to depend on the discretization details, and an upscaled model of the physical domain must be created (for example, effective coarse-scale material properties may be required to assemble the equations).   A more straightforward way to obtain the coarse problem is via the \textit{Galerkin} construction \cite{Nicolaides1975}:
+\begin{align}
+    A^H = R A^h P = \alpha P^T A^h P
+\end{align}
+leading to automatically defined (given a choice of interpolation) and well-conditioned coarse problems.   This approach leads to a \textit{black-box} geometric multigrid \cite{Dendy1982} method.   Its main downside is the growth of stencil (i.e. coupling between unknowns) at coarser levels.   In \textit{algebraic} multigrid the coarse problem hierarchy is built without explicit use of geometry, instead constructing grid transfer operators directly based on the fine-scale system matrix.   Where geometric multigrid uses pre-defined coarsening and adapts the smoother to the geometry (e.g. semi-coarsening with plane/line relaxation), algebraic multigrid typically employs simple pointwise smoothers, crafting the grid transfer such as to capture at the coarse level the error modes not damped by the fine-level smoother \cite{Stueben2001}.   In \textit{classical} algebraic multigrid (also known as Ruge-St{\"u}ben AMG) interpolation is built by splitting unknowns into coarse and fine using a set of rules or heuristics (typically relying on strength of connection) and deriving interpolation coefficients from fine-scale matrix entries.   \textit{Aggregation-based} AMG, on the other hand, defines coarse unknowns as aggregates of fine unknowns and obtains interpolation by applying an iteration of Jacobi smoothing to a tentative prolongation operator (defined as an indicator function on each aggregate).   In both cases, however, coarsening is typically fairly slow, and a large number of levels must be built before the problem is reduced to an acceptable size; aggressive coarsening options exist in many multigrid software packages to alleviate the resulting issue of high operator complexity.
 
 \subsection{Multiscale Finite Element Method}
+\label{subsec:related_work_msfe}
+
+A somewhat conceptually different multilevel framework was offered in \cite{Hou1997} in the context of finite element analysis.   Many problems of interest, especially in subsurface modeling, come with a high-fidelity description of the physical domain and material properties (such as porosity and permeability) aimed at accurately capturing the naturally occurring multiple-scale spatial correlations.
 
 \subsection{Multiscale Finite Volume Method}
+\label{subsec:related_work_msfv}
 
 \subsection{Multiscale Restriction-Smoothed Basis Method}
+\label{subsec:related_work_msrsb}
 
 \subsection{Two-Stage Algebraic Multiscale Solver}
+\label{subsec:related_work_tams}
 
 % ===================== SECTION =====================
-\section{Enhanced MsRSB for Multipoint Schemes}
+\section{Enhanced MsRSB for Multi-point Discretizations}
+\label{sec:enhanced_msrsb}
 
-\subsection{MsRSB for MPFA Flow}
+As mentioned in \autoref{ch:introduction}, one of the major difficulties associated with modeling of subsurface poromechanical systems is due to the geometrical and geological complexities of the underlying medium.    The presence of fractures, faults, joints and complex stratigraphic layer and channel structures often necessitates the use of fully unstructured grids to satisfy the modeling accuracy requirements.   While classical multiscale methods such as MsFV have been successfully applied to some semi-structured and unstructured problems, robust construction of compatible dual partitions suitable for solving localized problems on complex grid topologies remains a considerable challenge and is not always amenable to being fully automated \cite{Moyner2014a}.   Moreover, the algebraic procedure for enforcing the localization assumptions during basis function computation is derived with the assumption of \textit{two-point flux approximation} (TPFA) finite volume scheme being the discretization of the fine-scale problem.   TPFA is by far the most widespread scheme of choice in engineering and scientific applications, owing to its unconditional monotonicity, small stencil and ease of implementation.   However, unstructured grids employed in poromechanical modeling, especially in presence of strong geometrical and material anisotropy, typically do not conform to the K-orthogonality condition required for consistency of TPFA scheme, and more advanced schemes such as \textit{multi-point flux approximation} (MPFA) must be employed in order to achieve consistent numerical fluxes.   As for problems where finite element method is used at the fine scale, such as linear elasticity, MsFE is a natural choice for a multiscale formulation and has been successfully applied as such \cite{Buck2013}.   Yet, the construction of reduced boundary problems places geometric constraints on coarse cell shapes, thus limiting its use with unstructured grids, and does not admit a fully algebraic construction, instead relying on reassembling the boundary problems from fine-scale element stiffness matrices \cite{Castelletto2017}.   All of the aforementioned issues motivate the choice of MsRSB method as the basis for further exploration due to its flexibility and robustness with respect to the choice of coarse grids.
 
-\subsection{MsRSB for Linear Elasticity}
+The original MsRSB formulation described in \autoref{subsec:related_work_msrsb} was developed and validated primarily targeting the scalar elliptic single-phase flow equation (or the very similar total mass conservation equation in multiphase flow problems) discretized with TPFA finite volume scheme.    As will be shown below, attempting to na\"{i}vely apply the method to other types of discrete systems results in problems, solutions to which involve an adaptation of the smoothing procedure.   We present such an adaptation in this section, focusing on two types of problems relevant to subsurface poromechanics on unstructured grids: MPFA single-phase flow problems and linear elasticity.
+
+\subsection{MsRSB for MPFA Single-Phase Flow}
+\label{subsec:enhanced_msrsb_flow}
+
+We will consider an incompressible single-phase flow model problem:
+\begin{align}
+    - \nabla \cdot \left(\tensorTwo{\lambda} \cdot \nabla p\right) = q
+\end{align}
+with a discrete linear problem of the form
+\begin{align}
+    A^h\vec{p}^h = \vec{q}^h
+\end{align}
+where $A^h$ is the flux matrix, $\vec{p}^h$ is the discrete vector of cell-centered pressures and $\vec{q}^h$ is the discrete vector of sources (superscript $h$ is used to refer to equations on the fine scale).
+
+In the MPFA-O method \cite{Aavatsmark2002}, the discrete flux $q_{ij}$ between cells $i$ and $j$ sharing a common face is approximated via
+\begin{align}
+    q_{ij} = \lambda_{ij}\sum\limits_{l \in L} T_{ij}^l \phi_l
+\end{align}
+where $\lambda_{ij}$ is the fluid mobility (typically evaluated at the upstream cell conditions), $\phi_l$ is the potential in cell $l$, $T_{ij}^l$ is the transmissibility coefficient of $ij$ interface associated with cell $l$, and $L$ is the set of adjacent cells that is grid-dependent, but generally includes (a subset of) cells sharing a common vertex with the face connecting cells $i$ and $j$.   Transmissibilities $T_{ij}$ are obtained by solving local systems of equations defined for each interaction region around a vertex of the shared face and assembling contributions from each interaction region adjacent to an interface.   By convention, we assume that the global system matrix is assembled with positive coefficients in the diagonal.
+
+Upon assembling the global system of linearized discrete equations, the TPFA scheme produces a Jacobian that is an \textit{M-matrix}.   M-matrices commonly arise in numerical analysis when dealing with discretizations of some PDE operators (such as the Laplacian), as well as other areas of mathematics.   Formally, a matrix $A \in \mathbb{R}^{n \times n}$ is an M-matrix if it is a Z-matrix (a matrix with non-positive off-diagonal elements $a_{ij} \leq 0, i \neq j$) and can be represented as $A = sI - B$ with $B \geq 0$ (element-wise inequality) and $s > \rho(B)$.   Many other equivalent definitions of an M-matrix exist in the literature.   One particular property of nonsingular M-matrices that is of interest for the construction of iterative methods is the fact that $A^{-1} > 0$ and that for any \textit{regular} splitting $A = M - N$ (i.e. a splitting with $M$ nonsingular and $M^{-1} \geq 0$, $N \geq 0$), the spectral radius $\rho(M^{-1}N) < 1$ \cite{Saad2003}.   This guarantees the convergence of both Jacobi and Gauss-Seidel smoothers applied to an M-matrix $A$, since both are based on regular splittings.   In the context of MsRSB method this implies that basis functions can be robustly computed using the iterative procedure \eqref{}.
+
+Unfortunately, MPFA-O discretization in general does not result in an M-matrix except in the case of strictly K-orthogonal grids \cite{Aavatsmark2002}.   In practice this means that basis smoothing iteration may diverge and result in unphysical coefficients in the interpolation matrix $P$ (that is, values outside of $[0,1]$ range).   To mitigate this issue, we alter the fine-scale matrix $A^h$ with minimal intrusion in such a way as to restore the M-matrix property.   In particular, it is sufficient to lump positive off-diagonal entries into the corresponding diagonal element of each row.   This procedure preserves zero row sum property while removing entries that inhibit convergence of iterative smoothing.   Formally, we can define the matrix $\hat{A}^h$ of ''offending'' coefficients as
+\begin{align}
+    [\hat{A}^h]_{ij} = 
+    \begin{dcases}
+        [A^h]_{ij}, \quad &[A^h]_{ij} > 0, i \neq j \\
+        0, \quad &\text{otherwise}
+    \end{dcases}
+\end{align}
+and construct the filtered matrix $\tilde{A}^h$ as
+\begin{align}
+    \tilde{A}^h = A^h - \hat{A}^h + \Diag({\Rowsum(\hat{A}^h)})
+    \label{eq:msrsb_mpfa_filtering}
+\end{align}
+where $\Rowsum$ is an operator $\mathbb{R}^{n \times n} \to \mathbb{R}^n$ that produces a vector of matrix row sums:
+\begin{align}
+    \Rowsum(A) = A\sum\limits_{i=1}^n \vec{e}_i
+    \label{eq:rowsum_operator}
+\end{align}
+and $\Diag$ is an operator $\mathbb{R}^{n} \to \mathbb{R}^{n \times n}$ that constructs a square matrix with given vector as its diagonal:
+\begin{align}
+    \Diag(\vec{x}) = \sum\limits_{i=1}^n (\vec{e}_i^T \vec{x}) (\vec{e}_i \vec{e}_i^T)
+    \label{eq:diag_operator}
+\end{align}
+with $\vec{e}_i$ the standard basis vectors in $\mathbb{R}^n$.   Special care must be taken to avoid modifying rows representing Dirichlet boundary conditions (if any) that initially contain just the diagonal element.   The matrix adjustment is performed during preconditioner setup and does not affect the way fine-scale problem is discretized.   Furthermore, we note that the filtering is only applied to the copy of $A^h$ used in basis function computation, while the original, unaltered $A^h$ is employed in the rest of the preconditioner.   This approximate treatment is justified in the context of a multiscale method, where the goal is to construct an approximate solution with basis functions accounting for the M-matrix-like part of the system (which describes most major interactions between cell pressures).   When used to precondition an iterative Krylov solver, the multiscale step is combined with a smoother that takes care of the additional local pressure variations due to the lumped off-diagonal coefficients.   Conceptually this approach is similar to using, for example, incompressible pressure basis functions to approximate solutions of compressible problems \cite{Zhou2008}.   Furthermore, it bears similarity to the flux splitting methods used in \cite{Lee2002,Jenny2002} whereby the flux Jacobian at the linear level was approximated by its two-point part in order to reduce the stencil size and the complexity associated with increased matrix density, while the multi-point part is accounted for by the means of iterating on the residual.   The key difference in our approach is that we only lump coefficients that violate M-matrix requirements, and we do so in a purely algebraic fashion, without a rigorous derivation based on some underlying physical assumption.   This is however sufficient for the present goal of enabling convergence of the basis iteration.
+
+\begin{figure} [htbp]
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_a}}
+  \caption{\label{fig:mpfa_demo_grid}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_b}}
+  \caption{\label{fig:mpfa_demo_support}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_c}}
+  \caption{\label{fig:mpfa_demo_orig}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_d}}
+  \caption{\label{fig:mpfa_demo_alter}}
+\end{subfigure}
+\caption[MsRSB basis functions for MPFA flow problem]{\label{fig:mpfa_demo} Basis function for the center block of a regular 3$\times$3 partition: (a) primal grid and coarse nodes (\Colorcircle{red}); (b) support boundary (\Colorcircle{yellow}), edge (\Colorcircle{green}) and internal cells (\Colorcircle{blue}); (c) MsRSB basis function using the original fine-scale system; and (d) MsRSB basis function using the adjusted fine-scale system. The relative grid dimensions are not to scale.}
+\end{figure}
+
+To demonstrate the effect the approximation has on the smoothed basis iteration, we consider a simple test case shown in \autoref{fig:mpfa_demo}.   Starting from a regular $9 \times 9$ Cartesian square, we randomly perturb the vertex positions and then stretch the grid by a factor of 10 in the $y$-direction.   The resulting discrete system exhibits anisotropy in coefficients even with isotropic permeability tensor and deviates strongly from the TPFA approximation.   We consider a $3 \times 3$ coarse grid and employ MsRSB iteration to iteratively converge basis functions to a tight tolerance of $e_{it} = 10^{-12}$, monitoring the basis function associated with the central coarse cell.   Without any modification to the system matrix, the process begins to diverge after approximately 10 iterations, and basis functions become unphysical with negative pressure values, as displayed in \autoref{fig:mpfa_demo_orig}.   On the other hand, iteration based on a matrix filtered according to \eqref{eq:msrsb_mpfa_filtering} converges and results in the desired monotone basis functions, as evident from \autoref{fig:mpfa_demo_alter}.   Note that due to cancellation of several connections in the MPFA matrix, the basis function does not fully spread to the corners of its support region.   This does not present a problem in practice since the missing cells are still interpolated by other coarse pressures (it is impossible for all connections of a cell to be filtered out simultaneously) and partition of unity in the interpolation operator is preserved by construction.   Finally, we note that the treatment developed here for MPFA-O scheme is quite general and applies to other flavors of multi-point schemes, such as MPFA-L and MPFA-G, although conducting thorough testing with all of them is beyond the scope of this work.
+
+\subsection{MsRSB for FEM Linear Elasticity}
+\label{subsec:enhanced_msrsb_mech}
+
+We further investigate the extension of matrix lumping ideas to preconditioning linear systems arising from finite element discretizations of second order elliptic PDEs with vector unknowns.   Considering the governing equation for quasi-static linear momentum balance in displacement formulation and assuming linear elastic behavior:
+\begin{align}
+    \nabla \cdot \tensorTwo{\sigma(\vec{u})} + \vec{b} &= 0 \\
+    \tensorTwo{\sigma}(\vec{u}) &= \tensorFour{C} : \nabla^s \vec{u}
+    \label{eq:elasticity_pde}
+\end{align}
+the discrete finite element linear system reads:
+\begin{align}
+    A^h\vec{u}^h = \vec{f}^h
+\end{align}
+where $A^h$ is the finite element global stiffness matrix, $\vec{u}^h$ is the discrete vector of displacement unknowns with $n_{sd}$ (the number of spatial dimension) unknowns per grid node, and $\vec{f}^h$ is the discrete forcing vector.   For exposition purposes only, we assume here that unknowns are ordered by each coordinate directions.   The stiffness matrix $A^h$ then possesses the block structure:
+\begin{align}
+	A^h &=
+    \begin{bmatrix}
+        A_{xx}^h & A_{xy}^h & A_{xz}^h \\
+        A_{yx}^h & A_{yy}^h & A_{yz}^h \\
+        A_{zx}^h & A_{zy}^h & A_{zz}^h 
+	\end{bmatrix},
+	\label{eq:blk_stiff}
+\end{align}
+where the off-diagonal blocks reflect the full coupling between $x$, $y$ and $z$ components (in two dimensions the number of blocks would be $2 \times 2$).   As an important aside, \eqref{eq:elasticity_pde} is not a purely elliptic equation, but rather is a system of $n_{sd}$ coupled elliptic PDEs.   Note that $A^h$ is symmetric positive definite (assuming Dirichlet boundary conditions, if any, are applied in a symmetry-preserving fashion), but is not an M-matrix in general.   This implies that a standard restricted smoothing iteration applied to $A^h$ would face the same divergence issue previously observed with MPFA.
+
+To overcome this issue, we employ a two-step approximation of $A^h$.   First, the so-called separate displacement component (SDC) \cite{Gustafsson1996} approximation reads:
+\begin{align}
+	A^{\textsc{sdc}} &=
+    \begin{bmatrix}
+  	    A_{xx}^h &          &        \\
+  	             & A_{yy}^h &        \\
+  	             &          & A_{zz}^h 
+	\end{bmatrix},
+    \label{eq:blk_stiff_SDC}
+\end{align}
+i.e. a sparsification of $A^h$ that consists of discarding all cross-coupling terms between the vector unknowns.   The motivation behind SDC as a preconditioning approach is that the approximate matrix is spectrally equivalent to the full stiffness matrix \cite{Blaheta1994,Gustaffson1998}, yet is more sparse and decomposes the coupled problem into $n_{sd}$ independent elliptic problems that are much more favorable to existing preconditioning techniques, such as incomplete factorizations and multigrid methods.   More specifically, each diagonal block $A_{ii}$ corresponds to finite element discretization of an anisotropic diffusion operator \cite{Bosma2021}.   Note that this approximation breaks down in the incompressible elasticity limit (i.e. Poisson ratio $\nu \to 0.5$ \cite{Axelsson1978}), however this is of no concern for most problems of interest in subsurface poromechanics, where typical values lie in the range $0.1 \leq \nu \leq 0.4$.
+
+The second approximation step consists of applying lumping technique developed for MPFA flow to the diagonal blocks of SDC stiffness matrix --- that is, we construct $\tilde{A}^h$ where each of the $n_{sd}$ diagonal blocks $\tilde{A}_{ii}^h$ is the result of applying \eqref{eq:msrsb_mpfa_filtering} to $A_{ii}^h$.   As a result, $\tilde{A}^h$ becomes a (weakly diagonally dominant) M-matrix suitable for smoothing iteration.   For the case of a stiffness matrix of scalar FEM with Neumann boundary conditions, \cite{Xu2017} contains a formal proof of spectral equivalence of $A_{ii}^h$ and $\tilde{A}_{ii}^h$ constructed in this fashion (referred to therein as an \textit{M-matrix relative} of $A_{ii}^h$).   By extension and due to SDC approximation, this implies spectral equivalence of the $A^{\textsc{sdc}}$ and $\tilde{A}^h$.   In addition, we once again note the similarity of our lumping approach to existing preconditioning techniques --- namely, the one introduced in \cite{Gustafsson1996} with the goal of ensuring existence and robustness of incomplete factorizations of the stiffness matrix.   While their lumping applied before assembly, at the level of individual element matrices, in present work it is performed on the assembled matrix, with similar end result.
+
+In a FEM simulation of elasticity, $n_{sd}$ unknowns are collocated at each node of the mesh both at the fine and the coarse level, therefore each coarse node also has $n_{sd}$ coarse basis functions associated with it, one per coordinate direction.   Computing these functions based on $\tilde{A}^h$ which includes SDC approximation leads to fine-scale displacement field in each coordinate direction being expressed as a linear combination of coarse node displacements in that direction only.   The resulting interpolation operator $P$ is thus block-diagonal, which constitutes a major difference from a classic MsFE approach to geomechanics, which constructs fully coupled basis functions \cite{Castelletto2017} that account for additional coupling between all fine- and coarse-scale solution directions, at the cost of much denser basis functions.   However, despite the decoupled basis, MsRSB coarse-scale stiffness matrix $A^H = R A^h P = P^T A^h P$ is coupled, with each block computed via
+\begin{align}
+A^H_{ij} = P^T_{ii} A_{ij}^h P_{jj}, \quad i,j \in \{x,y,z\}
+\end{align}
+and thus still captures the interactions between components of displacement vector at the coarse scale (note that the original coupled stiffness matrix $A$ is used here).   On the other hand, use of SDC approximation offers the ability of construct basis functions associated with each coordinate direction separately, by performing smoothing iteration on each $\tilde{A}_{ii}$ and $P_{ii}$ independently.   This can lead to substantial computational savings if basis in some coordinate direction converges slower than in the others, avoiding needless updates to already converged blocks of $P$.   In practice, the user-provided matrix $A$ often has node-wise ordering, and there is additional work involved associated with permuting it into block form considered above and re-assembling the node-ordered prolongation operator from blocks $P_{ii}$, so one must weigh potential computational savings against these additional costs.
+
+\begin{figure} [htbp]
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_a}}
+  \caption{\label{fig:fem_demo_grid}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_b}}
+  \caption{\label{fig:fem_demo_support}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_c}}
+  \caption{\label{fig:fem_demo_orig}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.22\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_d}}
+  \caption{\label{fig:fem_demo_alter}}
+\end{subfigure}
+\caption[MsRSB basis functions for FEM linear elasticity]{\label{fig:fem_demo} Basis function for $x$-displacement of the middle coarse node of a regular 4$\times$4 partition: (a) primal grid; (b) coarse (\Colorcircle{red}), support boundary (\Colorcircle{yellow}), edge (\Colorcircle{green}) and internal (\Colorcircle{blue}) nodes; (c) MsRSB basis function using the original fine-scale system; and (d) enhanced MsRSB basis function using the adjusted fine-scale system. The relative grid dimensions are not to scale.}
+\end{figure}
+
+This matrix lumping approach is demonstrated on a simple conceptual two-dimensional test case shown in \autoref{fig:fem_demo}, consisting of a simple homogeneous problem on a Cartesian $12 \times 12$ fine-scale grid defined in terms of dimensionless quantities with unit Lam\'{e} parameters.  The coarse grid is $4 \times 4$ with 5 nodes in each direction, and we are investigating the basis functions associated with the middle coarse node.   Unlike the MPFA test in \autoref{subsec:enhanced_msrsb_flow}, there is no need to perturb the grid nodes; it is sufficient to simply introduce anisotropy by stretching the grid (we used a factor of 20) along the $y$-axis to induce positive off-diagonal coefficients that violate M-matrix properties.   Basis iteration with original system matrix diverges after about 20 iterations, and the $x$-displacement basis function contains negative values, as shown in \autoref{fig:fem_demo_orig}.   On the other hand, iteration on the altered matrix converges (using a tolerance $e_{it} = 10^{-12}$) to the expected bilinear basis functions displayed in \autoref{fig:fem_demo_alter}.
+
+To assess the effect of proposed matrix modifications on interpolation quality and performance of the preconditioner, we consider a two-dimensional test case from \cite{Castelletto2017}.   The test consists of a 2D elastic isotropic domain with a layered distribution of Young's modulus inspired by well log data and a constant Poisson ratio of 0.2.   The level of material contrast is controlled by parameter $\beta$ and varied between 1 and 3 orders of magnitude in Young's modulus variation.   Additionally, four mesh families are considered (\texttt{cart}, \texttt{skew}, \texttt{trig} and \texttt{rand}) each with a different type of geometric distortion applied to the coarse grid.   Each mesh consists of a base $7 \times 7$ Cartesian grid that is further refined by a factor into a $224 \times 224$ fine grid, from which several structured coarse grids are generated using varying coarsening ratios.   Finally, three types of boundary conditions are prescribed: two representing laterally constrained and unconstrained vertical compression respectively, and one representing simple shear in the $x$-direction.   For each combination of these parameters, a full preconditioned iterative solution is performed, replicating the solver setup used in \cite{Castelletto2017}: BiCGStab acceleration with two-stage multiscale preconditioning using two-level multiscale operator as the first (global) stage ILU(0) as the second stage (local) post-smoother.   Results are summarized in \autoref{tab:2D_structured_BICGSTAB_iter} which lists the Krylov iteration counts for MsRSB-based preconditioner.   Our observation is that for this wide range of scenarios, the MsRSB version performs robustly and yields a number of iterations comparable to MsFE (see \cite{Castelletto2017}), with a only a modest increase (about 20-30\%) for most cases, with the exception of laterally constrained case on \texttt{cart} mesh where MsFE interpolation is exact and thus leads to immediate convergence.   Therefore, the proposed approach to computing basis functions via restricted smoothing on an algebraically lumped stiffness matrix constitutes a solid basis for the development of a scalable multilevel preconditioning framework.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{figs/2D_structured_young}
+    \caption[Structured 2D heterogeneous geomechanics test case]{Structured 2D heterogeneous geomechanics test case: Young's modulus distribution and computational mesh setup.}
+    \label{fig:2D_structured_young}
+\end{figure}
+
+\begin{table}
+    \centering
+    \caption[Structured 2D heterogeneous geomechanics test case: number of BiCGStab iterations]{Structured 2D heterogeneous geomechanics case: number of BiCGStab iterations to converge to $10^{-8}$ for different mesh families, coarse grid sizes and Young's modulus variations.}
+    \label{tab:2D_structured_BICGSTAB_iter}
+    \begin{small}
+    \setlength\tabcolsep{3.8pt}
+    \begin{tabular}{cccccccccccccccc}
+        \hline\noalign{\smallskip}
+        $\beta$ & \multirow{2}{*}{\begin{tabular}{c}\# coarse\\elements\end{tabular}} & \multicolumn{4}{c}{laterally constrained} & & \multicolumn{4}{c}{laterally unconstrained} & & \multicolumn{4}{c}{simple shear} \\
+        \noalign{\smallskip}\cline{3-6} \cline{8-11} \cline{13-16}\noalign{\smallskip}
+        & & \texttt{cart} & \texttt{skew} & \texttt{trig} & \texttt{rand} & & \texttt{cart} & \texttt{skew} & \texttt{trig} & \texttt{rand} & & \texttt{cart} & \texttt{skew} & \texttt{trig} & \texttt{rand} \\
+        \hline\noalign{\smallskip}
+        1 & $56\times56$ & 5 & 7 & 6 & 5 & & 4 & 7 & 6 & 5 & & 6 & 7 & 7 & 5 \\
+          & $28\times28$ & 8 & 10 & 11 & 8 & & 8 & 12 & 11 & 10 & & 13 & 16 & 17 & 14 \\
+          & $14\times14$ & 16 & 20 & 19 & 16 & & 18 & 21 & 22 & 19 & & 26 & 29 & 32 & 26 \\
+          & $7 \times7 $ & 37 & 33 & 40 & 40 & & 41 & 38 & 43 & 43 & & 40 & 47 & 44 & 42 \\
+        \hline\noalign{\smallskip}
+        2 & $56\times56$ & 4 & 6 & 6 & 5 & & 5 & 6 & 6 & 6 & & 5 & 6 & 6.5 & 5 \\
+          & $28\times28$ & 7 & 10 & 12 & 8 & & 9 & 10 & 12 & 9 & & 12 & 19 & 20 & 17 \\
+          & $14\times14$ & 17 & 26 & 26 & 18 & & 18 & 23 & 25 & 22 & & 37 & 39 & 46 & 37 \\
+          & $7 \times7 $ & 46 & 50 & 54 & 49 & & 52 & 58 & 53 & 53 & & 51 & 59 & 55 & 51 \\
+        \hline\noalign{\smallskip}
+        3 & $56\times56$ & 4 & 6 & 8 & 6 & & 6 & 8 & 10 & 9 & & 6 & 7 & 8 & 7 \\
+          & $28\times28$ & 10 & 11 & 13 & 10 & & 11 & 12 & 17 & 10 & & 17 & 19 & 19 & 18 \\
+          & $14\times14$ & 22 & 30 & 39 & 30 & & 21 & 32 & 40 & 34 & & 46 & 49 & 47 & 50 \\
+          & $7 \times7 $ & 49 & 61 & 73 & 63 & & 63 & 71 & 86 & 71 & & 62 & 67 & 71 & 58 \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+    \end{small}
+\end{table}
 
 % ===================== SECTION =====================
 \section{Multilevel Coarsening for General Polyhedral Grids}
+\label{sec:msrsb_coarsening} 
 
 \subsection{Grid Representation}
+\label{subsec:msrsb_coarsening_grid}
 
-\subsection{Hierarchical Graph Decomposition}
+Definition of any multiscale method starts with the selection of a coarse grid (or a sequence of them).   Historically many multiscale methods have been designed and validated primarily with relatively simple topologies (which we understand as the connectivity structure of grid vertices and cells), such as structured Cartesian.   Such grids are both preferred by academic researchers due to ease of use and clarity of presentation, and employed widely in industrial numerical modeling workflows, owing to the efficiency, robustness and accuracy of most discretizations and solvers and such grids.   In many methods, the requirement of structured topology of the coarse grid is not stated explicitly, but implied.   For example, in MsFE the need to assemble reduced boundary problems along coarse-scale interfaces (faces, and in 3D also edges) generally assumes that the coarse interface have regular well-behaved shapes --- faces are expected to be more or less flat surfaces and edges straight lines, otherwise constructing tangential operator projections such as $\nabla_{\parallel}$ onto a reduced-dimension space requires potentially much less accurate approximations of fine-scale behavior, leading to lower quality interpolation and slower convergence of the scheme.   Moreover, the challenge of constructing of a coarse grid in a completely unstructured three-dimensional setting has not been systematically addressed.   This is reasonable, as the method was devised as a way of solving a finite-element problem at the coarse scale, with sub-grid resolution provided by numeric multiscale shape functions, and finite-element methods primarily deal with well-defined element shapes.   Multiscale Mixed Finite Element (MsMFE) method \cite{Chen2002} addresses the geometric flexibility issue of MsFE by replacing local Dirichlet problems with Neumann problems used to obtain velocity basis functions.   This allowed the method to be used on grids with complex stratigraphy and topology \cite{Aarnes2008,Alpak2012}; however the fine-scale problem is assumed to be written in the mixed form, which is not the case for most simulation workflows.
+
+On the other hand, MsFV method allow for a much more flexible algebraic construction of the reduced boundary problems \cite{Wang2014}, but leans heavily on the primal-dual partitioning of the grid.   While relatively straightforward to construct for structured and semi-structured topologies, robust dial partitions are difficult or sometimes impossible to achieve in an automatic manner for a wide range of coarsening ratios \cite{Moyner2014a}.   Graph-based algorithms have been employed to overcome some of these issues \cite{Mehrdoost2019}, but remain largely limited to two-dimensional problems, due to the complexity of defining three-dimensional faces in arbitrary topologies.   MsTPFA method addresses these shortcomings by combining two-point basis functions computed on the primal coarse grid with specially constructed numerical partition of unity functions that glue together flow solutions associated with coarse interfaces \cite{Moyner2014}.   While it admits coarse grids with cells represented by arbitrary disjoint partitions of fine cells, the method itself if quite complicated to implement.   Finally, MsRSB method described in \autoref{subsec:related_work_msrsb} provides a similar level of grid flexibility, but involves a construction of dual support regions based on geometric triangulation of local neighborhoods of each coarse cell, requiring to carry geometric properties (at the very least, cell and face centroids) not only at the fine level, but also at every coarse level if the method is to be applied in a truly multilevel fashion.   Naturally, all of these methods focus on cell-centered variables exclusively, and do not address the issue of nodal degrees-of-freedom used to represent mechanical displacements.
+
+Our goal is to adopt a multilevel mesh representation suitable for both flow and mechanics and devise the associated algorithms for constructing a sequence of coarser meshes.   The minimum requirements for the mesh data structure are:
+\begin{itemize}
+    \item must provide a way to coarsen both cells and nodes of the fine grid;
+    \item must have identical representation at each level, allowing for recursive coarsening;
+    \item must be as ''algebraic'' as possible; ideally, not involve any geometrical data.
+\end{itemize}
+This last requirement is particularly interesting.   Purely algebraic methods are highly desirable in the world of linear solvers, since they aid in modularizing the code, minimizing the amount of data that needs to passed through an interface, and decoupling the linear solver from meshing, discretization and physics packages.   This is less important when multiscale method is used as an approximate solver that the rest of the software is built around, but paramount when it's just another acceleration option for the solution of linear systems (i.e. a preconditioner or a building block for one).   Black-box methods are highly desirable in numerical software, and Algebraic Multigrid (AMG) preconditioners have achieved a lot of success in part due to their flexibility and simple interface that, at minimum, only requires the system matrix to be provided.   However even AMG packages typically offer a way for the user to provide additional information about the degrees-of-freedom, such as types or collocation. For example the popular SAMG \cite{?} library allows the user to specify a vector of degree-of-freedom labels indicating their type or physical space point they belong to, which allows the solver to make optimal choices with regard to coarsening and smoothing.   Similarly, algebraic MsFV solvers require either knowledge of the grid to construct the primal-dual partitioning, or at least access to the user-provided ''wirebasket'' classification of fine-scale cells.
+
+Given the aforementioned requirements, we define a grid level as ($h$ is used to refer to current/fine level and distinguish it from next coarse level denoted $H$):
+\begin{itemize}
+    \item a set of $N_n^h$ nodes (vertices) as abstract points in $n_{sd}$-dimensional space (coordinates or any other physical attributes are not preserved);
+    \item a set of $N_c^h$ cells (elements) as abstract volumes in $n_{sd}$-dimensional space (no assumptions about convexity or any specific shape, including being a polytope);
+    \item a set of $N_b$ domain boundaries;
+    \item cell-to-node topological map defined through its bipartite adjacency graph or, equivalently, sparse matrix $A_{CN}^h \in \set{0,1}^{N_c^h \times N_n^h}$;
+    \item boundary-to-node map defined by its bipartite adjacency graph or sparse matrix $A_{BN}^h \in \set{0,1}^{N_b \times N_n^h}$.
+\end{itemize}
+Note that finite element terminology (nodes and elements) will be used interchangeably with generic mesh entity names (vertices and cells) where appropriate without confusion.   The need for preserving domain boundary indicators in the mesh description will be fully explained in \autoref{subsec:msrsb_coarsening_algorithm}; briefly speaking, they aid in increasing interpolation quality near the boundaries by placing more coarse nodes or shifting coarse cell centers near the boundary, which is key to accurate interpolation of boundary conditions.   A box-shaped domain will have $n_{sd}$ boundaries, but in general an arbitrarily-shaped domain could have any number of user-specified outside surfaces.   As for cell-to-node adjacency, this data is typically freely available in finite-element codes, since the element integration loop needs to assemble local element-wise stiffness matrices into the global stiffness matrix, which requires mapping each element to its nodes (or to be precise, corresponding degrees-of-freedom, but these are interchangeable assuming first order linear elements).   In addition, in a coupled FE-FV simulation, the sparsity structure of the coupling blocks $B_1$ and $B_2$ corresponds exactly to the cell-to-node map (after taking into account unknown multiplicity, e.g. extracting only one row/column for each node corresponding to $n_{sd}$ displacement degrees-of-freedom).   In all other cases, the topological information must be provided explicitly by the simulation code.
+
+A coarse grid is defined on top of a fine grid as follows:
+\begin{itemize}
+    \item coarse-scale cells are formed by a non-overlapping partitioning (agglomeration) of fine-scale cells; this is represented by a partitioning vector $\vec{z}_c^h \in [1,N_c^H]^{N_c^h}$ at the fine scale;
+    \item coarse-scale nodes are a subset of fine-scale nodes located at intersections of multiple coarse cells (or more generally, subdomains); \autoref{subsec:msrsb_coarsening_algorithm} will detail exactly how this subset is chosen; this is represented by a mapping vector $\vec{z}_n^H \in [1,N_n^h]^{N_n^H}$;
+    \item the set of domain boundaries is preserved at each level;
+    \item coarse cell-to-node and boundary-to-node maps are obtain by selecting and compressing rows and columns according to $\vec{z}_c^h$ and $\vec{z}_n^H$ from corresponding fine-scale graph matrices.
+\end{itemize}
+This follows a classical cell-based coarsening approach, although other options are available (\autoref{subsec:msrsb_cell_basis_alt} considers one such alternative).   This is convenient because material properties are usually assigned to each cell in the grid and thus can be used to influence the coarsening process.   In a parallel setting, it is convenient to have coarse partition boundaries match the process subdomain boundaries, as explained in \autoref{ch:parallel_multiscale}.   \autoref{fig:square_coarse} shows an example of a coarse grid obtained by agglomeration (partitioning) of fine cells of an unstructured 2D triangle grid.
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.5\textwidth}
+    \centerline{\includegraphics[width=0.6\linewidth]{figs/square_tria_coarse}}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.5\textwidth}
+    \centerline{\includegraphics[width=0.6\linewidth]{figs/cube_tetra_coarse}}
+  \end{subfigure}
+  \caption[Unstructured coarse grid examples]{\label{fig:square_coarse} Example of unstructured coarse grid in 2D (left) and 3D (right). Cell colors correspond to coarse cells (partitions) and coarse nodes are marked (\Colorcircle{red})}
+\end{figure}
+
+\subsection{Coarsening Algorithm}
+\label{subsec:msrsb_coarsening_algorithm}
+
+The first step in generating a coarse grid at any level is to construct the cell partitioning vector, $\vec{z}_c^h$.   This is typically achieved using a variety of methods:
+\begin{itemize}
+    \item Geometrical coarsening, such as recursive inertial bisection (RIB) or space filling curves. These require cell centroid information to be preserved/computed at each level, which is not desirable in a practical implementation.   In our prototype implementation RIB option is available for comparison purposes.
+    \item (Semi-)structured coarsening, such as Cartesian coarsening of a topologically Cartesian fine grid.   Another example is 2.5D perpendicular bisector (PEBI) grid coarsening, in which the areal grid is partitioned using any method, and vertical layers are partitioned in a structured way according to layer index.   These methods require some additional structural information to be preserved at each level ($IJK$-index or layer index of each cell), but they generally result in higher quality partitions.
+    \item Unstructured topological coarsening, for example using a graph partitioning algorithm such as k-way partitioning or recursive bisection, often accessed though software packages such as METIS \cite{Karypis1999} or Scotch \cite{Chevalier2008}.   These algorithms offer the utmost flexibility with respect to grid topology.   Input cell graph $G_C$ is constructed based on mesh topology typically using a criterion for determining cell connectivity such as minimum number of common nodes: $A_{CC}^h = A_{CN}^h (A_{CN}^h)^T$ and $G_C \leftarrow A_{CC}^h \geq n_{cn}^{\min}$.   For flow problems, the graph can also be edge-weighted according to a function of fine-scale transmissibility, as well as adapted to various physical features such as channels, faults and flow barriers, which proves highly beneficial in real-world models with high permeability contrast \cite{?}.   Finally, graph partitioning methods offer a large number of options controlling partition quality, balancing and other aspects of algorithm behavior.   Variants such as multilevel tabu search algorithm with local adaptation to permeability field \cite{Mehrdoost2019} have been applied to achieve improved quality coarse partitions that avoid non-convex cell shapes and high material contrast along coarse cell boundaries.
+\end{itemize}
+
+A key parameter in the coarsening process is the \textit{cell-based coarsening ratio} $C_r^c$ representing the average number of fine cells per coarse cell:
+\begin{align}
+    C_r^c = \frac{N_c^h}{N_c^H}
+\end{align}
+We will distinguish it from \textit{effective} coarsening ratio $C_r^d$:
+\begin{align}
+    C_r^d = \frac{N_d^h}{N_d^H}
+\end{align}
+where $N_d$ is the number of degrees-of-freedom at the corresponding level. The two coincide in case of problems with cell-centered unknowns, but can be substantially different for nodal degrees-of-freedom (and consequently, for coupled problems with both unknown types). In examples using structured coarsening, we will sometimes use a Cartesian coarsening ratio definition for convenience: $C_r^c = C_{r,x} \times C_{r,y} \times C_{r,z}$. Coarsening ratios can vary several orders of magnitude, but typically multiscale methods tend to avoid very small ones ($C_r^c < 4^{n_{sd}}$).
+
+Once coarse cells are defined, coarse nodes must be determined by selecting a representative set of fine-scale nodes.   This problem is not well defined: while it's obvious which nodes should be transferred to the coarse level in case of structured partitioning (typically, a subset of nodes along each coordinate direction with a fixed step corresponding to the Cartesian coarsening ratio in that direction), the answer is less obvious for unstructured coarsening.   Extending the analogy from finest-scale grid, we can define a \textit{coarse face} as the union of fine faces shared by exactly two coarse cells.   Similarly, a \textit{coarse edge} is a union of line segments (fine edges) shared by a group of at least $n_{sd}$ coarse cells.   In two dimensions, coarse edges and coarse faces naturally coincide, which therefore suggests a very simple algorithm for determining coarse nodes: any fine vertex adjacent to three or more coarse cells becomes a coarse vertex.   To account for domain boundaries, the above definition can be extended to use coarse \textit{subdomains} instead, where a subdomain is either a coarse cell or a uniquely identified domain boundary.   This has the effect of placing an additional coarse vertex at the junction of two coarse cells and a boundary or two boundaries and a single coarse cell; \autoref{fig:square_coarse} demonstrates this in two dimensions.   Additional coarse nodes add coarse degrees of freedom and improve interpolation quality near the boundary, which is especially important if Dirichlet boundary conditions are applied (this is almost always the case for domain boundaries in mechanical problems).
+
+The above criterion does not generalize well to three dimensions.   Indeed, it's easy to see that an arbitrary number of coarse cells can conjoin on a group of fine nodes forming a coarse edge, but only the endpoints of the edge should be marked as coarse nodes.   To generalize this idea to arbitrary topologies, we consider an adaptation of hierarchical graph decomposition algorithm \cite{Henon2006}.   In their work, mesh nodes are grouped into \textit{connectors} according to mesh graph partition adjacency, and the algorithm builds a hierarchy of connectors optimal in some sense at every level of decomposition, with the aim of performing work (computing ILU factors) on decoupled subsets of the mesh in parallel.   In contrast, in this work the interest is in finding only highest-level connectors, i.e. coarse nodes.   The algorithm proceeds as follows:
+\begin{enumerate}
+    \item Coarse subdomains are defined by adding each global domain boundary as a new ''virtual'' coarse cell.   The number of subdomains is $N_s^H = N_c^H + N_b$, and for convenience, coarse cell subdomain numbering is preserved and boundary subdomains are assigned new indices $N_c^H+1,N_c^H+2,\ldots$.
+    \item Subdomain-to-fine node adjacency matrix $A_{SN}$ is built by collapsing rows of $A_{CN}^h$ according to partition index $\vec{z}_c^h$ and concatenating row-wise with $A_{BN}^h$. 
+    \item Each fine-scale node $i \in [1,N_n^h]$ is assigned a \textit{key} $K_i$ consisting of the indices of adjacent coarse subdomains:
+    \begin{align}
+        K_i = \Set{ k \in [1,N_s^H] \mid [A_{SN}]_{ki} = 1 }
+    \end{align}
+    \item Nodes with the same key are grouped into $N_f$ \textit{features} (or connectors), expressed by nodal grouping vector $\vec{z}_f^h \in [1,N_f]^{N_n^h}$.   In practice, nodes that belong to the interior of a coarse cell or the interface between coarse subdomains (i.e. those with key cardinality of 1 or 2) can be discarded at this stage, so that only the ''edge skeleton'' of the mesh is remaining.
+    \item A feature adjacency matrix $A_{FF} \in \set{0,1}^{N_f \times N_f}$ is constructed by merging rows and columns of fine-scale nodal adjacency matrix $A_{NN}^h = (A_{CN}^h)^T A_{CN}^h$ according to $\vec{z}_f^h$.   The matrix doesn't have to be computed explicitly, neighbor lists may be constructed dynamically by navigating the above maps and eliminating duplicates.
+    \item Any feature $j$ whose key is fully subsumed by one of its immediate neighbors ($K_j \subset K_i, [A_{FF}]_{ij} = 1$) is removed from the candidate set.   This simple criterion is the key simplification of the iterative multi-level decomposition procedure of \cite{Henon2006}.
+    \item All remaining features are become coarse nodes.   Typically, each highest-level connector will only consist of a single fine-scale node, but on rare occasions multiple nodes are possible; in that case any one fine-scale node can be selected to represent the coarse node.
+\end{enumerate}
+
+\begin{figure}[htbp]
+  \centerline{\includegraphics[width=0.5\linewidth]{figs/coarsening_2d_zoom_labels.png}}
+  \caption[Coarse node selection algorithm example in 2D]{\label{fig:coarse_nodes_algo_zoom} Example of coarse node selection algorithm in 2D. Coarse subdomain indices shown in gray labels; coarse edge feature keys in white; coarse node feature keys in pink. Detected coarse nodes are marked (\Colorcircle{red}), edge nodes (\Colorcircle{yellow}); interior nodes (\Colorcircle{blue}). Groups of nodes representing connectors are outlined by black rounded borders.}
+\end{figure}
+
+The above algorithm works robustly for two- and three-dimensional grids with arbitrary topologies, as long as coarse cells are formed by contiguous partitions.   An example of its application is shown in \autoref{fig:coarse_nodes_algo_zoom} for a 2D grid for simplicity of visual presentation.   Focusing on interface nodes adjacent to coarse cell 1 and one of its neighboring cells, one can observe that the most natural choice of coarse nodes are those with the (locally) largest adjacency.   Note that this choice of nodes is not necessarily unique or optimal, but we find that in practice it strikes a good balance between representation quality and preserving acceptable coarsening ratio and operator density in a multilevel hierarchy.   Occasionally, the algorithm may lead to appearance of clusters of closely located or even directly adjacent coarse nodes (an example is visible is \autoref{fig:coarse_nodes_algo_zoom}). Even though this does not present a problem for the construction of the interpolation operator, it leads to suboptimal use of memory and computational power.   These cases may be addressed by merging multiple coarse nodes into one and adjusting coarse-scale topology maps accordingly.   We note that while the algorithm is sensitive to the quality of fine-scale cell agglomeration (in the sense of minimizing the unfavorable coarse cell shapes and coarse node clustering), the issue of optimal mesh partitioning is beyond the scope of present work.   Finally, we remark that the coarsening procedure may be applied recursively, since it relies only on cell-node and boundary-node adjacency maps that are constructed at each level.   Typical multilevel preconditioner will proceed with the above algorithm to construct a grid hierarchy until a problem of sufficiently small size is obtained that is amenable to a direct solve.
 
 % ===================== SECTION =====================
 \section{Interpolation Operators}
+\label{sec:msrsb_interpolation} 
+
+Constructing the interpolation operator using MsRSB procedure involves the following steps:
+\begin{enumerate}
+    \item \label{itm:msrsb_step_matrix} Compute the Jacobi iteration matrix $G = I - \omega D^{-1} \tilde{A}$.
+    \item \label{itm:msrsb_step_support} Construct the support region of each basis function, i.e. the set of points $I_j$ where basis function takes nonzero values:
+    \begin{align}
+        i \in I_j \iff P_{ij} \neq 0
+    \end{align}
+    \item \label{itm:msrsb_step_boundaries} Determine the support boundary sets $B_j$, the union boundary set $U = \bigcup\limits_{j} B_j$ and the global interior point set $I = [1,N_n^h] \setminus B$.
+    \item \label{itm:msrsb_step_initp} Compute an initial (tentative) prolongation operator $P^0$.
+    \item \label{itm:msrsb_step_iterate} Iterate until convergence according to \autoref{?}.
+\end{enumerate}
+Next, the steps 2--4 above are considered in detail for nodal and cell-centered basis functions. The remaining two steps can be implemented generally using algebraic operations on matrices for any type of interpolation operator.
 
 \subsection{Nodal Basis Functions}
+\label{subsec:msrsb_nodal_basis}
+
+We begin by defining for each basis function is support, or area of influence.   Similar to the support of a regular fine-scale FEM shape function, the support of a basis function associated with a coarse node is defined to consist of the interior of the volume formed by the union of adjacent coarse subdomains.   More specifically, $I_j$ is the set of fine-scale nodes contained completely within the union of coarse subdomains incident on that coarse node.   These include both nodes completely interior to a single subdomain as well as those shared by several subdomains within support region (but none outside the support).   Virtual subdomains formed by global boundaries don't have any interior volume and consist purely of the corresponding boundary fine-scale nodes.   Their inclusion in the above definition is important, since it allows a basis function associated with a coarse node located on the boundary to take nonzero values and provide interpolation along that boundary.   Support boundary $B_j$ is identified to be the set of fine nodes adjacent to at least one coarse cell in support as well as at least one subdomain outside of support of coarse node $j$.   Alternatively, $B_j$ can be described as the set of fine nodes sharing a common fine cell with nodes in $I_j$ but not themselves belonging to $I_j$.   Both of these sets can be constructed in a fairly straightforward manner using adjacency matrices $A^H_{CN}$, $A^h_{CN}$ and partitioning vector $\vec{z}_c^h$.   Global sets $B$ and $I$ are then obtained with simple set union and difference operations.   \autoref{fig:square_node_supp} shows examples of nodal basis function supports with different types of meshes/partitioning (limited to 2D meshes for clarity).
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_supp}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_node_supp}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_supp}}
+  \end{subfigure}
+  \caption[Nodal basis function support grid examples]{\label{fig:square_node_supp} Example of basis function supports (\Colorcircle{blue}) and support boundaries (\Colorcircle{yellow}) associated with a coarse node (\Colorcircle{red}) for different types of grids/coarsening: fully structured (left), graph-coarsened structured (middle) and fully unstructured (right).   The coarsening ratios are intentionally chosen to be small to simplify presentation.}
+\end{figure}
+
+Initial MsRSB prolongation operator assigns, for each basis function, a value of 1 to nodes in some vicinity of the corresponding coarse node and 0 to all others. Since the initial prolongation must satisfy partition of unity, each node must be assigned 1 by exactly one basis function, which naturally forms a non-overlapping partitioning of fine nodes. Unlike in the original cell-centered MsRSB method \cite{Moyner2016}, this partitioning for nodes is not available from the coarse grid hierarchy and must be constructed separately.   We propose the following node segmentation algorithm using topological adjacency data:
+\begin{enumerate}
+    \item Seed each partition with the fine node corresponding to the associated coarse node.
+    \item For each partition, compute the candidate set of new nodes by collecting the topological neighbors of nodes already in partition.
+    \item Exclude from the candidate set nodes that are already assigned to a partition, as well as any nodes that are in support boundary of associated coarse node (this is required to prevent initial basis function from accidentally extending beyond support).
+    \item For any nodes in more than one candidate set, choose only one and remove from all others.   The criteria for choosing the assignment may vary; examples that work well in practice include minimizing topological distance to the partition center (coarse node) or maximizing topological connectivity (number of neighbors in each partition).
+    \item Merge candidate sets into their respective partitions and repeat steps 2--5 until no unassigned nodes remain.
+\end{enumerate}
+
+\autoref{fig:square_node_basis} demonstrates examples of generated nodal partitions on different types of grids/coarsening along with select initial and fully converged basis functions corresponding to each case (coarse nodes with non-overlapping support are chosen to improve visibility).   The converged basis function always spreads from each initial configuration to cover all the nodes in its support, as long as sufficient number of smoothing iterations are performed.   Note that in these examples the matrix used to construct the basis functions does not include the effects of boundary conditions.   In a typical simulation, however, this matrix is not available and instead the full system Jacobian with boundary conditions is provided to the linear solver.   Of the boundary conditions commonly used in mechanical problems, only boundary conditions of Dirichlet type have an effect on matrix, resulting in rows corresponding to constrained degrees-of-freedom containing just the diagonal element.   This has a clearly visible effect on the converged basis functions, showcased in \autoref{fig:square_node_bc}, particularly in the case of symmetric application of boundary conditions when the corresponding column is also zeroed out, resulting in a degree-of-freedom completely decoupled from the rest of the system.   As a consequence, basis functions centered on boundary nodes and associated with normal direction of that boundary end up interpolating only nodes along that boundary.   In practice this leads to only a small reduction in interpolation quality and a minor increase in overall Krylov iteration count, due to the action of second-stage smoother that helps propagate boundary condition values into the domain interior, where they are picked up by other basis functions.   Note that symmetric application of Dirichlet boundary conditions is common in pure mechanics problems where it is important for preserving symmetry of the system matrix (although it is not always practical because of the complexity of eliminating columns in typical row-oriented compressed matrix representations).   It is much less common in coupled poromechanics however, where the flow matrix is typically non-symmetric due to upstream weighting and prevents use of methods designed for symmetric matrices (such as Conjugate Gradient).   Boundary condition applied non-symmetrically do not exhibit this issue to nearly the same extent, due to the remaining one-way coupling of boundary to interior nodes.
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_part}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_node_part}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_part}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_init}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_node_init}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_init}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_conv}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_node_conv}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_conv}}
+  \end{subfigure}
+  \caption[Nodal partitions and basis function examples]{\label{fig:square_node_basis} Examples of nodal partitions (top row) and select corresponding initial (middle row) and converged (bottom row) basis functions with support boundaries shown in (\Colorcircle{yellow}) for different types of grids/coarsening: fully structured (left), graph-coarsened structured (middle) and fully unstructured (right).   In all cases material is homogeneous and no boundary conditions are applied to the matrix used to compute basis functions.}
+\end{figure}
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_conv}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_conv_bc_nonsymm}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_conv_bc_symm}}
+  \end{subfigure}
+  \caption[Nodal basis function with boundary condition effects]{\label{fig:square_node_bc} Examples of converged $x$-displacement basis functions without (left) and with non-symmetric (middle) and symmetric (right) application of Dirichlet boundary conditions to the system matrix.   Only normal displacement is prescribed on each side of the domain while tangential is unconstrained.}
+\end{figure}
+
+Finally, it's worth pointing out how the mechanisms of basis construction described earlier transfer to coarser grids when the number of levels exceeds two.   \autoref{fig:square_node_ml} shows an example of a fine mesh that is coarsened twice to obtain first and second level coarse grids.   Due to the flexibility of grid representation, the same algorithms are applied at each level to locate coarse nodes, build support regions, boundaries and compute tentative interpolation.   Note that second level prolongation operator is numerically defined on a discrete set of points corresponding to first level coarse nodes, but from a mathematical standpoint it can be viewed as belonging to the same function space as the finite element solution (piecewise linear functions on fine-scale elements), since the sequence of underlying finer-scale basis (or shape) functions can be used to compute its value anywhere in the domain.    Therefore rightmost image of \autoref{fig:square_node_ml} plots it on the fine grid by interpolating it using first-level prolongation operator.    In general, interpolation operator $P^{(k)}$ at any level $k$ can be interpreted on the fine grid via 
+\begin{align}
+    P^{(k),f} = \prod\limits_{i=1}^{k}P^{(i)} = P^{(1)}P^{(2)} \ldots P^{(k)}
+\end{align}
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_ml_lvl1_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_ml_lvl2_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_node_ml_lvl2_basis}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_ml_lvl1_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_ml_lvl2_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_node_ml_lvl2_basis}}
+  \end{subfigure}
+  \caption[Higher level coarse grids and basis functions]{\label{fig:square_node_ml} Nodal basis construction on higher coarse grid levels: first level coarse grid (left); second level coarse grid (middle) obtained by partitioning first-level coarse cells; second level coarse basis function (right).   Coarse nodes are shown in (\Colorcircle{red}), support and boundary nodes for the basis function in (\Colorcircle{blue}) and (\Colorcircle{yellow}), respectively. Node marker size indicates the coarse grid level.}
+\end{figure}
 
 \subsection{Cell-Centered Basis Functions}
+\label{subsec:msrsb_cell_basis}
+
+In cell-centered multiscale methods (both MsFV and original MsRSB) the support of a basis function is defined to be a region surrounding the coarse cell center and extending to, but not including, centers of neighboring coarse cells (i.e. those sharing an interface with the current one).   In MsFV this is formalized through the concept of a dual grid, with edges and faces typically formed by cells intersected by line or plane connecting neighbor cells.   In MsRSB the authors used geometric triangulation of the local set of points of interest (coarse cell and face centers) as a quick way to query and select cells lying within support and then form boundaries by extending another layer of cells, thus forming an approximate dual grid.   In both approaches, it is desirable for the interface cell layers between different support regions to match and be as thin as possible (for either accuracy or computational efficiency reasons).   The method proposed herein shares this goal, but attempts to construct support regions with perfectly matching single-cell layer boundaries using topological information only.
+
+The task of constructing dual interfaces in a two-dimensional grid has a fairly simple solution that involves computing shortest paths between each pair of neighboring coarse cell centers in the fine-scale cell adjacency matrix $A_{CC}^h$.   This can be achieved quickly using Dijkstra's algorithm applied to a subgraph limited only to cells belonging to the coarse cells of interest.   The solution, however, does not generalize well to three dimensions, where the problem of computing a minimal surface connecting a set of graph nodes is significantly more challenging.   Therefore a different approach is desired, and it comes from exploiting the duality between nodes and cells in a mesh.   Indeed, it is well known that the dual of a mesh $\mathcal{T}$ is a Voronoi mesh $\mathcal{T}^D$ of the same dimension in which vertices correspond to cell centroids of $\mathcal{T}$ and cells are formed by shortest-distance volumes around vertices of $\mathcal{T}$.   A similar definition can be extended to coarse grids formed by cell partitions --- in that case, the dual coarse volume corresponding to a coarse node is formed by a set of fine nodes topologically closest to that node, the dual coarse node is represented by a fine cell adjacent to a (locally) maximal number of dual coarse volumes, and the rest of fine cells adjacent to more than one dual coarse volume form the interfaces, analogous to fine nodes in a primal coarse mesh.   In \autoref{subsec:msrsb_nodal_basis} a simple procedure was presented for forming a nodal partitioning induced by a primal cell partitioning, which produces clusters of nodes corresponding exactly to topologically closest node agglomerates (Voronoi-like node partitions).   In \autoref{subsec:msrsb_coarsening_algorithm} a graph-based algorithm for selecting coarse nodes given cell-node adjacency was presented, which can also be used to analyze the dual node partitions.   Therefore all components for building an approximate graph-based dual coarse grid are available.   
+
+The algorithm for constructing the dual coarse grid proceeds as follows:
+\begin{enumerate}
+    \item Let $\vec{z}_n^h \in [1,N_n^H]^{N_n^h}$ be the node partitioning vector obtained as a result of executing node clustering procedure from \autoref{subsec:msrsb_nodal_basis}.
+    \item Each fine-scale cell $i \in [1,N_c^h]$ is assigned a key $K_i$ consisting of the indices of adjacent node partitions:
+    \begin{align}
+        K_i = \Set{ k \in [1,N_n^H] \mid \exists j \in [1,N_n^h]: [A_{CN}^h]_{ij} = 1 \:\text{and}\: [\vec{z}_n^h]_j = k }
+    \end{align}
+    \item Cells with the same key are grouped into $N_c^f$ cell features expressed by cell grouping vector $\vec{z}_f^h \in [1,N_c^f]^{N_c^h}$.
+    \item A cell feature adjacency matrix $A_{FF}^c \in \set{0,1}^{N_c^f \times N_c^f}$ is formed by merging rows and columns of fine-scale cell adjacency matrix $A_CC^h = A_{CN}^h (A_{CN}^h)^T$ according to $\vec{z}_f^h$.
+    \item Any feature $j$ whose key is fully subsumed by one of its neighbors ($K_j \subset K_i, \: [A_{FF}^c]_{ij} = 1$ is removed from the candidate set.
+    \item All remaining features are marked as vertex cells of the dual grid and become collocation points for coarse cell-centered degrees-of-freedom.
+\end{enumerate}
+Note that steps 2--6 are remarkably similar to the coarse node selection algorithm of \autoref{subsec:msrsb_coarsening_algorithm}.   In fact, it can be carried out by the same code while only swapping the inputs: replacing input adjacency map $A_{CN}^h$ with its transpose $A_{NC}^h = (A_{CN}^h)^T$ and cell partitioning vector $\vec{z}_c^h$ with node partitioning vector $\vec{z}_n^h$ obtained in step 1.   The resulting dual coarse grids, along with the nodal partitions that produce them, are shown in the top row of \autoref{fig:square_cell_dual}, with coarse dual vertex cells highlighted in red color.   Marked in yellow are cells that are shared by more than one coarse dual cell --- they make up the support boundary sets $B_j$ as well as the global boundary set $B$.   All the other fine-scale cells belong to interior of one the dual coarse cells.   At this point, the dual cell-to-node adjacency matrix, $A_{CN}^D$, can be constructed by merging rows of $A_{NC}^h = (A_{CN}^h)^T$ according to the nodal partitioning vector $\vec{z}_n^h$ and selecting columns corresponding to dual coarse vertex cells.
+
+One can observe that the above algorithm results in more coarse dual vertex cells than there are primal coarse cells, except for the purely Cartesian case.   Indeed, in a completely unstructured setting it is impossible to guarantee that topologically grown nodal partitions intersect exactly in one location in each coarse cell (which would be the ideal outcome).   On the other hand, if we first fixed the desired coarse dual vertex location (for example, by pre-selecting the most ''central'' cell of a primal partition), there is no clear way to enforce the dual interfaces to match and be consistent with the chosen vertex cells.   We remark than MsRSB method does not necessarily require matching dual interfaces (i.e. they could cross each other, and support regions of basis functions associated with non-neighboring coarse cells could in general overlap), but this would lead to an increase in the total number of support boundary cells, which increases the computational cost of the method since rows of the prolongation operator corresponding to boundary cells need to be rescaled on each smoothing iteration.   The proposed algorithm avoids this at the cost of constructing a dual grid that is not an exact (optimal) dual of the primal coarse grid.    The rest of the method can proceed without issues, however there will be more coarse cell-centered degrees-of-freedom than otherwise would be expected, and some of them will be clustered closely together.   This can lead to an increase in computational cost (in both construction and use) and memory footprint of the multiscale operator without a corresponding increase in interpolation quality.   This can be addressed by simple post-processing of the dual coarse grid with the aim of reducing the number of coarse degrees-of-freedom. Post-processing consists of the following steps:
+\begin{enumerate}
+    \item Detect groups of dual coarse vertex cells belonging to the same primal coarse cell.
+    \item Select one cell from each group to mark as the new dual vertex cell, for example using a graph-based measure of centrality as the criterion, and remove all the other ones.
+    \item Merge together columns of dual cell-to-node adjacency $A_{CN}^D$ corresponding to each group of vertex cells.
+\end{enumerate}
+
+Examples of post-processed dual grids are shown in bottom row of \autoref{fig:square_cell_dual}.   Obviously, no difference is observed for the completely structured case, since the initial dual grid induced by nodal partitioning perfectly matches what would be produced by a structured (Cartesian index-based) approach.   In other cases, post-processing effectively forces a single vertex cell per primal coarse partition, while preserving the dual edges induced by the nodal partition.   These edges no longer connect two dual coarse vertices directly, but form a more complex network with multiple forks and joints.   Nevertheless, there is still a single edge passing through each primal coarse cell interface.    Similar (albeit rather difficult to visualize effectively) result is obtained in three dimensions, with a network of dual surfaces approximating dual interfaces.
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_dual_nomerge}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_cell_dual_nomerge}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_dual_nomerge}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_dual}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_cell_dual}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_dual}}
+  \end{subfigure}
+  \caption[Dual grid for cell-centered basis functions]{\label{fig:square_cell_dual} Examples of nodal partitions and induced dual coarse grids (top row) and post-processed dual coarse grids (bottom row) with support boundaries shown in (\Colorsquare{yellow}) and coarse dual vertex cells in (\Colorsquare{red}) for different types of grids/coarsening: fully structured (left), graph-coarsened structured (middle) and fully unstructured (right).   The coarsening ratios are intentionally chosen to be small to simplify presentation.}
+\end{figure}
+
+The support region for a coarse basis function associated with one of the dual coarse vertex cells is constructed in almost the same way as in the case of nodal basis functions: $I_j$ is the set of fine-scale cells adjacent exclusively to nodes in nodal partitions neighboring the vertex cell.   The same procedure may be used to build support regions $I_j$ and boundary sets $B_j$, replacing coarse mesh adjacency $A_{CN}^H$ with dual adjacency $A_{NC}^D$.   One major difference is that we don't need to introduce additional virtual subdomains representing global domain boundaries, which was a specific treatment required by nodal basis.   The initial basis functions take a much simpler form compared to nodal basis: following original MsRSB work, we can simply use an indicator function that assigns 1 for each fine cell within the primal coarse cell, and 0 outside.  \autoref{fig:square_cell_basis} demonstrates examples of support regions resulting from various kinds of post-processed dual grids, as well as initial and converged basis functions.   An important consequence of the post-processing procedure implemented is that fine cells that fall on dual edges connecting the merged vertex cells always keep the basis function value of 1, i.e. are always interpolated to the value of the vertex cell.   This occurs because they happen to be on the support boundary for every other basis functions, and tends to somewhat decrease quality of the interpolation operator.   The lengths of these constant interpolation streaks vary with grid and partition quality, but they tend to make up a few percent of the coarse cell volume.   In an approximate multiscale solver this would lead to systematic errors in the interpolated solution, but in the context of a preconditioner it can be acceptable without loss of scalability due to action of the second stage that can resolve these localized errors.
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_supp}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_cell_supp}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_supp}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_init}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_cell_init}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_init}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_conv}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_metis_cell_conv}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_conv}}
+  \end{subfigure}
+  \caption[Cell-centered support and basis function examples]{\label{fig:square_cell_basis} Examples of cell-centered support regions (top row) and initial (middle row) and converged (bottom row) basis functions with outer support boundaries shown in (\Colorsquare{yellow}), interior support boundaries in (\Colorsquare{green}) and coarse dual vertex cells in (\Colorsquare{red}) for different types of grids/coarsening: fully structured (left), graph-coarsened structured (middle) and fully unstructured (right).}
+\end{figure}
+
+Similar to nodal case, cell-centered basis functions on coarser grid levels of a multilevel scheme are defined recursively, using finer-level basis to interpolate and interpret them on the fine scale (using piecewise constant shape functions on each element), as shown in \autoref{fig:square_cell_ml} for a three-level scheme.   In the idealized case of Cartesian grid with structured coarsening and homogeneous material, the second coarse level basis functions are identical to ones that would be constructed in a two-level scheme utilizing the coarsest grid directly; in most other cases however grid effects of the first coarse level can be observed.   One caveat of a multilevel cell-centered method is that coarse degree-of-freedom collocation points tend to get further away from the boundary as the number of levels increases, leaving a widening layer with constant interpolation at domain boundaries, which negatively affects convergence.   One must therefore avoid over-coarsening (using too many levels), or additional post-processing of the dual grid must be employed to shift or place additional coarse cell centers closer to domain boundaries.
+
+\begin{figure}[htbp]
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_ml_lvl1_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_ml_lvl2_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_cart_struct_cell_ml_lvl2_basis}}
+  \end{subfigure}
+  \par\bigskip
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_ml_lvl1_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_ml_lvl2_grid}}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.3\textwidth}
+    \centerline{\includegraphics[width=0.9\linewidth]{figs/square_tria_metis_cell_ml_lvl2_basis}}
+  \end{subfigure}
+  \caption[Higher level coarse grids and  cell-centered basis functions]{\label{fig:square_cell_ml} Cell-centered basis construction on higher coarse grid levels: first level coarse grid (left); second level coarse grid (middle) obtained by partitioning first-level coarse cells; second level coarse basis function (right).   Coarse cell centers are shown in (\Colorsquare{red}), boundary cells for the basis function in (\Colorsquare{yellow}), respectively.}
+\end{figure}
 
 \subsection{Error and Spectral Analysis}
+\label{subsec:msrsb_analysis}
 
-\subsection{Alternative Coarsening Strategy}
+%\subsection{Alternative Coarsening Strategy}
+%\label{subsec:msrsb_cell_basis_alt}
 
 % ===================== SECTION =====================
 \section{Preconditioning for Coupled Systems}
+\label{sec:coupled_precond}
+
+We now address preconditioning for coupled single-phase poroelastic systems discretized fully implicitly using first-order finite element method for displacements and cell-centered finite volume method for pressure.   Linearized discrete problem of this type takes the form:
+\begin{align}
+    \begin{bmatrix}
+        A_{uu}^h & A_{up}^h \\
+        A_{pu}^h & A_{pp}^h
+    \end{bmatrix}
+    \begin{bmatrix}
+        \vec{u}^h \\
+        \vec{p}^h
+    \end{bmatrix} =
+    \begin{bmatrix}
+        \vec{f}_u^h \\
+        \vec{f}_p^h
+    \end{bmatrix}
+    \label{eq:coupled_poroelastic_linear_system}
+\end{align}
+where off-diagonal blocks $A_{up}^h$ and $A_{pu}^h$ capture the effect of the Biot poroelastic coupling.   This is a coupled system of two elliptic (or elliptic-like) equations which exhibits interactions at a range of spatial scales, therefore it is suited to be solved by a multilevel scheme.   In this section we devise a preconditioning scheme that addresses the coupled problem.   The poroelastic preconditioner follows the general two-stage multiscale solver template described in \autoref{subsec:related_work_tams}, with a global coarse grid correction operator and a local smoother combined multiplicatively at every level.   Both stages are described in detail below.    We remark two differences from much of the published multiscale work:
+\begin{itemize}
+    \item The smoother in this method is applied, by default, both before and after coarse grid step, in line with most multigrid methods (but as an option, pre- post-smoothing can be disabled).
+    \item The method is multilevel by default, that is, coarse level solve consist of another application of multiscale preconditioner.   The level hierarchy can be truncated either by a hard limit on number of levels, or by setting a lower limit on number of degrees of freedom that should be coarsened further.
+\end{itemize}
 
 \subsection{Coupled Interpolation and Coarse Problem}
+\label{subsec:coupled_interpolation}
+
+In order to define the global (multiscale) operator $\mathcal{M}_G$ \eqref{eq:coupled_poroelastic_linear_system}, a prolongation must be defined that simultaneously interpolates displacement and pressure values at the fine-scale (herein we assume a Galerkin method with $R = P^T$).   In order to be compatible with the coupled system matrix, the operator must also possess the block form
+\begin{align}
+    P = 
+    \begin{bmatrix}
+        P_{uu} & P_{up} \\
+        P_{pu} & P_{pp}
+    \end{bmatrix}
+    \label{eq:coupled_prolongation_general}
+\end{align}
+
+Given a coarse mesh, two possibilities to define such an operator using MsRSB method arise naturally:
+\begin{itemize}
+    \item Initialize diagonal blocks of \eqref{eq:coupled_prolongation_general} using same indicator functions as in their respective single-physics methods functions.   Then perform smoothing iteration \autoref{?} on the coupled matrix until convergence on the full set of basis functions.
+    \item Perform smoothing iteration separately for displacement and pressure basis functions, using only $A_{uu}^h$ and $A_{pp}^h$ blocks, respectively.   Define a block-diagonal prolongation operator
+    \begin{align}
+        P = 
+    \begin{bmatrix}
+    P_{uu} &        \\
+           & P_{pp}
+    \end{bmatrix}
+    \label{eq:coupled_prolongation}
+    \end{align}
+\end{itemize}
+
+The first approach results in a set of coupled basis functions that incorporate local (fine-scale) interaction effects between displacement and pressure.   However, the smoothing iteration is not guaranteed to converge in general for the coupled system, or may take a very long time to do so.   Moreover, the software implementation of this approach is somewhat more cumbersome, requiring non-trivial modifications of otherwise black-box implementations of the flow and mechanics preconditioners.   In particular, pressure (cell-centered) support for displacement basis functions and displacement (nodal) support regions for pressure basis functions must be defined, which determine the sparsity pattern of $P_{pu}$ and $P_{up}$ blocks, respectively.   Therefore we opt for the second approach, where the basis functions for each coarse degree-of-freedom only interpolate their corresponding fine-scale counterparts.   This roughly corresponds to drained conditions for mechanics (no contributions to stress from fluid pressure) and fixed-strain conditions for flow (flow in undeformed porous medium), although an option to construct a fixed-stress Schur complement approximation for $A^h$ is also available, as explained below.
+
+In addition to a more straightforward implementation, an important advantage of this choice is the lack of requirement on the coarse grids for displacement and pressure to match.   Indeed, each of the $P_{uu}$ and $P_{pp}$ block's computation does not affect the other, which allows for completely independent choice of coarse grids.   For example, separate coarsening ratios may be used for the two problems, reflecting the difference in the scales of variation in the underlying material properties.   Although not considered in present work, even the case where fine-scale discretization is carried out on two different grids can be supported (which of course requires the user to provide adjacency information for both grids).   Even though the total number of levels in the preconditioner must be the same for both sub-problems in order for the coupled coarse problem to be well-defined, each can independently choose when to truncate the coarsening and effectively preserve the coarsest grid resolution through the remaining levels.   Thus, the choice of block-diagonal interpolation provides a great deal of flexibility with respect to tuning parameter space.
+
+We remark that the coarse-scale system remains coupled even with this choice of prolongation:
+\begin{align}
+    \begin{bmatrix}
+		R_{uu} &       \\
+		       & R_{pp}
+	\end{bmatrix}
+	\begin{bmatrix}
+		A_{uu}^h & A_{up}^h \\
+		A_{pu}^h & A_{pp}^h
+	\end{bmatrix}
+	\begin{bmatrix}
+	    P_{uu} &       \\
+		       & P_{pp}
+	\end{bmatrix} =
+	\begin{bmatrix}
+	    R_{uu} A_{uu}^h P_{uu} & R_{uu} A_{up}^h P_{pp} \\
+	    R_{pp} A_{pu}^h P_{uu} & R_{pp} A_{pp}^h P_{pp}
+	\end{bmatrix} =
+	\begin{bmatrix}
+		A_{uu}^H & A_{up}^H \\
+		A_{pu}^H & A_{pp}^H
+	\end{bmatrix}
+	\label{eq:coupled_poroelastic_coarse_system}
+\end{align}
+with all blocks nonzero.   Therefore the coupling between mechanics and flow is taken into account at the coarse scale, and remaining fine-scale errors resulting from interpolation deficiency can be effectively accounted for be the coupled smoother, described in the following subsection.   Coarsest-scale system with matrix \eqref{eq:coupled_poroelastic_coarse_system} can be solved with a direct solver, or any other solver suitable for a coupled system of this type.
 
 \subsection{Block-Triangular Smoothing via Fixed-Stress Approximation}
+\label{subsec:coupled_smoothing}
+
+The local smoother for the coupled system can be designed following the existing body of work on preconditioners for coupled poroelasticity \cite{White2011,White2015,Castelletto2015,Castelletto2019}.   Namely, block Gaussian elimination on system matrix $J$ of \eqref{eq:coupled_poroelastic_linear_system} yields block upper-triangular form:
+\begin{align}
+    \begin{bmatrix}
+        A_{uu}^h & A_{up}^h \\
+                 & S_{pp}^h
+    \end{bmatrix}
+    \label{eq:coupled_poroelastic_schur_system}
+\end{align}
+with
+\begin{align}
+    S_{pp}^h &= A_{pp}^h - A_{pu}^h (A_{uu}^h)^{-1} A_{up}^h \label{eq:coupled_poroelastic_schur_complement}
+\end{align}
+where $S_{pp}^h$ is the Schur complement of $A_{uu}^h$.   The matrix $(A_{uu}^h)^{-1}$, and consequently $(S_{pp}^h)^{-1}$, generally is dense and expensive to compute directly, therefore an inexpensive sparsity-preserving approximation $\tilde{S}_{pp}^h$ is desirable.   Such an approximation can be obtained based on one of several approaches:
+\begin{itemize}
+    \item Physics-based construction as proposed in \cite{White2015}:
+    \begin{align}
+        \tilde{S}_{pp}^h = A_{pp}^h + \frac{b^2}{K_{dr}}M_p
+    \end{align}
+    with $b$ the Biot coefficient, $K_{dr}$ the drained bulk modulus of the solid and $M_p$ the pressure space mass matrix (which, for the case of finite-volume flow discretization, turns into a diagonal matrix of cell volumes).
+    \item Element-by-element inverse approximation proposed in \cite{Castelletto2016}:
+    \begin{align}
+        \tilde{S}_{pp}^h = \sum\limits_{i=1}^{N_c^h} [A_{pu}^h]_{i,:} [A_{uu}^h]_{(i)}^{-1} [A_{up}^h]_{:,i} \vec{e}_i \vec{e}_i^T
+    \end{align}
+    with $[A_{uu}^h]_{(i)}$ the sub-matrix of $A_{uu}^h$ corresponding to nodes of element $i$, $[A_{pu}^h]_{i,:}$ the $i$-th row of $A_{pu}^h$ and $[A_{up}^h]_{:,i}$ the $i$-th column of $A_{up}^h$.
+    \item Diagonal approximation of the leading block:
+    \begin{align}
+        \tilde{S}_{pp}^h = A_{pp}^h - A_{pu}^h (D_{uu}^h)^{-1} A_{up}^h
+    \end{align}
+    with $D_{uu}$ the diagonal of $A_{uu}^h$.   Note that the sparsity pattern of the subtracted term which represents cell connections through a shared vertex may be wider than that of $A_{pp}^h$ when TPFA scheme is used; in that case, the extra terms are dropped or lumped into diagonal in order to avoid modifying the sparsity pattern (typically an expensive operation).
+    \item Probing technique used in \cite{Klevtsov2016}:
+    \begin{align}
+        \tilde{S}_{pp}^h = A_{pp}^h - \Diag(A_{pu}^h \mathcal{M}_u^{-1} A_{up}^h \vec{e})
+    \end{align}
+    where $\mathcal{M}_u^{-1}$ is some preconditioner or solver capable of cheaply approximating the action of $(A_{uu}^h)^{-1}$ on a vector (possibly a single multiscale or multigrid cycle), and
+    \begin{align}
+        \vec{e} = \sum\limits_{i=1}^{N_c^h}\vec{e}_i
+    \end{align}
+    is the probing vector with every element equal to 1.   The idea behind probing with this particular vector is that the diagonal approximation constructed this way preserves row sums of the exact Schur complement and thus amounts to diagonal lumping.   Computing $\tilde{S}_{pp}^h$ this way involves two matrix-vector multiplications and one solve with an approximate mechanics solver
+\end{itemize}
+In this work, diagonal and probing-based approximations are used, owing to their fully algebraic character and simplicity of implementation.   It's worth mentioning that in the context of block smoothing, the construction of accurate Schur complement approximation is less important, compared to full-fledged fine-scale block preconditioners, so $\mathcal{M}_u^{-1}$ may be chosen to be very cheap.   Moreover, as $A_{uu}^h$, $A_{up}^h$ and $A_{pu}^h$ are constant for a linear elastic solid model under small strain assumption and fixed displacement boundary conditions (a typical modeling scenario), $\tilde{S}_{pp}^h$ can only be computed once and reused for the rest of the simulation run.
+
+Assuming efficient local smoothers are available separately for $A_{uu}^h$ ($\mathcal{M}_{L,u}^{-1}$) and $\tilde{S}_{pp}^h$ ($\mathcal{M}_{L,p}^{-1}$), the system \eqref{eq:coupled_poroelastic_schur_system} can now be preconditioned with a block upper-triangular operator
+\begin{align}
+    \mathcal{M}_L^{-1} =
+    \begin{bmatrix}
+        \mathcal{M}_{L,u} & A_{up}^h          \\
+                          & \mathcal{M}_{L,p}
+    \end{bmatrix}^{-1}
+    =
+    \begin{bmatrix}
+        \mathcal{M}_{L,u}^{-1} & -\mathcal{M}_{L,u}^{-1} A_{up}^h \mathcal{M}_{L,p}^{-1} \\
+                               &  \mathcal{M}_{L,p}^{-1}
+    \end{bmatrix}
+\end{align}
+
+The above form, applied to a vector $\vec{v}$, amounts to
+\begin{align}
+    \vec{z} = \mathcal{M}_L^{-1}\vec{v} = 
+    \begin{bmatrix}
+        \mathcal{M}_{L,u}^{-1} & -\mathcal{M}_{L,u}^{-1} A_{up}^h \mathcal{M}_{L,p}^{-1} \\
+                               &  \mathcal{M}_{L,p}^{-1}
+    \end{bmatrix}
+    \begin{bmatrix}
+        \vec{v}_u \\
+        \vec{v}_p
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+        \mathcal{M}_{L,u}^{-1} \left(\vec{v}_u - A_{up}^h (\mathcal{M}_{L,p}^{-1} \vec{v}_p)\right) \\
+        \mathcal{M}_{L,p}^{-1} \vec{v}_p
+    \end{bmatrix}
+\end{align}
+which in turn is equivalent to a multiplicative combination of $\mathcal{M}_{L,p}^{-1}$ and $\mathcal{M}_{L,u}^{-1}$, applied in two steps:
+\begin{enumerate}
+    \item Compute $\vec{z}_p = \mathcal{M}_{L,p}^{-1} \vec{v}_p$
+    \item Compute $\vec{z}_u = \mathcal{M}_{L,u}^{-1}(\vec{v}_u - A_{up}^h \vec{z}_p)$
+\end{enumerate}
+
+The specific choice of Schur approximation above corresponds to the so-called fixed-stress operator, widely used as an operator splitting and iterative solution technique and shown to be unconditionally stable \cite{Kim2011} and highly effective.   Other choices are available for the shape of the preconditioning operator, for example block diagonal or lower-triangular (employed in \cite{White2019}).   In the context of a preconditioned iterative method, all of them are approximately equivalent, since the outer iteration provides exchange of information in both directions via residual updates (with possible error orthogonalization steps in between).   Alternative approaches include constructing a Schur complement $S_{uu}^h$ of $A_{pp}^h$, or simply ignoring the Schur complement and using block diagonal of system matrix \eqref{eq:coupled_poroelastic_linear_system} for preconditioning.   These approaches are less effective as shown by \cite{White2015}, and ultimately the construction of the smoother is a relatively small fraction of the overall setup cost.
+
+\subsection{Multiscale Preconditioner for Multiphase Poromechanics}
+\label{subsec:coupled_multiphase}
+
+The methods developed in present work focus primarily on efficient elliptic solvers for single-phase poroelasticity.   However, fully implicit modeling of coupled multiphase flow and mechanics is of practical interest for many applications, such as geological storage of CO\textsubscript{2}, unconventional oil and gas reservoirs and more.   Here we briefly present a preconditioning framework for multiphase poromechanics with two options to incorporate multiscale methods developed previously in this work.   It combines the ideas of the widely used and proven Constrained Pressure Residual preconditioner for coupled flow and transport \cite{Wallis1983} and fixed-stress preconditioning discussed earlier.   For simplicity, in the remainder of this subsection superscript $h$ will be omitted and the matrices will refer to the fine scale, unless noted otherwise.
+
+Specifically, consider the mutliphase poromechanics system matrix permuted into the block form
+\begin{align}
+    A = 
+    \begin{bmatrix}
+        A_{uu} & A_{up} & A_{us} \\
+        A_{pu} & A_{pp} & A_{ps} \\
+        A_{su} & A_{sp} & A_{ss}
+    \end{bmatrix}
+    \label{eq:multiphase_poromechanics_block_form}
+\end{align}
+where $u$ denotes displacement and momentum balance equations; subscript $p$ denotes pressure unknown and total mass balance equation; subscript $s$ represents transport variables (typically phase saturations and/or component mole/mass fractions) when used as block column index and mass conservation equations of individual components (except one) when used as block row index.   One can observe that block $A_{us}$ describes the effect of transport unknowns on momentum balance.   Phase saturations influence momentum balance through mixture density terms affecting gravity forces and possibly, depending on the modeling approach, through average pore pressure included in total stress.   Both of these effect are relatively weak unless capillary pressure difference between phases is high compared to reference phase pressure or sharp contrast is present in phase densities.   For the rest of this section we will make the approximation $A_{us} \approx 0$ for preconditioning purposes.
+
+The first approach follows \cite{White2019} and consists of a two-level reduction scheme in which mechanical and flow/transport problems are separated first, using view of the system partitioned as
+\begin{align}
+    A = 
+    \begin{bmatrix}
+        A_{uu} & A_{uf} \\
+        A_{fu} & A_{ff}
+    \end{bmatrix}
+\end{align}
+with subscript $f$ indicating flow/transport unknowns and equations.   The outer preconditioner is based on approximate inverse of the upper triangular form of $A$
+\begin{align}
+    \begin{bmatrix}
+        A_{uu} & A_{uf} \\
+               & S_{ff}
+    \end{bmatrix}
+\end{align}
+with probing-based Schur complement approximation
+\begin{align}
+    S_{ff} &= A_{ff} - A_{fu}A_{uu}^{-1}A_{uf} \\
+    \tilde{S}_{ff} &= A_{ff} - \Diag(A_{fu}\mathcal{M}_u^{-1}A_{uf}\vec{e})
+\end{align}
+and reads
+\begin{align}
+    \mathcal{M}_I^{-1} =
+    \begin{bmatrix}
+        \mathcal{M}_{uu} & A_{uf}          \\
+                         & \mathcal{M}_{f}
+    \end{bmatrix}^{-1}
+    =
+    \begin{bmatrix}
+        \mathcal{M}_{u}^{-1} & -\mathcal{M}_{u}^{-1} A_{uf}^h \mathcal{M}_{f}^{-1} \\
+                             &  \mathcal{M}_{f}^{-1}
+    \end{bmatrix}
+\end{align}
+Here $\mathcal{M}_f^{-1} \approx \tilde{S}_{ff}^{-1}$ represents the standard two-stage CPR operator:
+\begin{align}
+    \mathcal{M}_f^{-1} = \mathcal{M}_{f,G}^{-1} + \mathcal{M}_{f,L}^{-1}\left(I - \tilde{S}_{ff}\mathcal{M}_{f,G}^{-1}\right)
+\end{align}
+with a local smoother $\mathcal{M}_{f,L}^{-1}$ applied to the overall flow/transport system ordered cell-wise, and the global operator $\mathcal{M}_{f,G}^{-1}$ consisting of (True-IMPES or Quasi-IMPES) restriction to the pressure system combined with a pressure solver $\mathcal{M}_p^{-1}$.   The key ingredients --- efficient elliptic solvers $\mathcal{M}_u^{-1}$ and $\mathcal{M}_p^{-1}$ --- consist of an application of the multilevel multiscale methods described in this chapter (typically just a single up/down cycle).   Thus, coupling between pressure and displacement is resolved only at the fine scale, which may require a few more iterations overall, but each of the two multiscale cycles is separate from the other and can choose its depth independently.   The fact that the setup of $\mathcal{M}_p^{-1}$ is based on the CPR pressure system (which incorporates the influence of transport and thus changes between Newton iterations and time steps) highlights one of the strengths of MsRSB approach - the ability to incrementally update basis functions by making only a few smoothing iterations.
+
+The second approach extends the ideas presented in \cite{Klevtsov2016} in which hyperbolic transport unknowns are decoupled from the (approximately) elliptic displacement-pressure system.
+Namely, the outer preconditioner takes a standard two-stage local-global form:
+\begin{align}
+    \mathcal{M}_{II}^{-1} = \mathcal{M}_{II,G}^{-1} + \mathcal{M}_{II,L}^{-1}\left(I - A \mathcal{M}_{II,G}^{-1}\right)
+\end{align}
+in which the local smoother $\mathcal{M}_{II,G}^{-1}$ is a block smoother similar in design to the one described in \autoref{subsec:coupled_smoothing} but with a block variant of the smoother applied to cell-wise ordered flow/transport block $A_{ff}$ instead of $A_{pp}$.   The global operator builds on a CPR-type reduction of the form:
+\begin{align}
+    A_{ee} =
+    \begin{bmatrix}
+        A_{uu} - A_{us} D_{ss}^{-1} A_{su} & A_{up} - A_{us} D_{ss}^{-1} A_{sp} \\
+        A_{pu} - D_{ps} D_{ss}^{-1} A_{sp} & A_{pp} - D_{ps} D_{ss}^{-1} A_{sp}
+    \end{bmatrix}
+    =
+    \begin{bmatrix}
+        A_{uu}         & A_{up} \\
+        \tilde{A}_{pu} & \tilde{A}_{pp}
+    \end{bmatrix}
+    = R^{cpr} A P^{cpr}
+\end{align}
+with subscript $e$ denoting the elliptic part of the problem, $D_{ss}$ and $D_{ps}$ are block diagonalizations of the corresponding blocks of $A$ (based on True-IMPES or Quasi-IMPES approach), and we have taken into account the approximation $A_{us} \approx 0$.   In the above,
+\begin{align}
+    R^{cpr} = 
+    \begin{bmatrix}
+                             & I &   \\
+        - D_{ps} D_{ss}^{-1} &   & I
+    \end{bmatrix}
+    \quad\quad\quad
+    P^{cpr} =
+    \begin{bmatrix}
+          &   \\
+        I &   \\
+          & I 
+    \end{bmatrix}
+\end{align}
+Finally, the coupled multiscale preconditioner is applied to the elliptic system with matrix $A_{ee}$:
+\begin{align}
+    \mathcal{M}_{II,G}^{-1} = P^{cpr} \mathcal{M}_{poro}^{-1} R^{cpr}
+\end{align}
+As shown previously, this preserves and accounts for mechanics-flow coupling at every level.   Thus, this scheme might be preferred in cases in which this coupling is particularly strong throughout the domain.
+
+\subsection{Treatment of Wells}
+\label{subsec:coupled_wells}
+
+Finally, handling of wells by the multiscale method must be discussed.   Numerical well models manifest as additional flux terms in perforated cells and/or additional equations representing mass balance in the well, as described in \autoref{?}.   In most examples presented later in this chapter, boundary conditions for the flow problem are represented by single perforation wells.   Such wells do not need a dedicated control equation, and their effect on the system is expressed either through a right-hand side contribution (for rate-controlled wells) or both right-hand side and diagonal matrix contribution (for pressure-controlled wells).   For multi-perforation wells a separate control equation is formed, and for even more complex multi-segmented well models multiple mass balance equations and associated degrees-of-freedom introduced, leading to the following partition of the system matrix:
+\begin{align}
+    A^h =
+    \begin{bmatrix}
+        A_{pp}^h & A_{pw}^h \\
+        A_{wp}^h & A_{ww}^h
+    \end{bmatrix}
+\end{align}
+with $A_{pp}^h$ representing the matrix of the flow problem.   Following \cite{Moyner2016}, present method preserves all well equations and unknowns at every level of coarsening, as expressed by the following definition of $P$:
+\begin{align}
+    P =
+    \begin{bmatrix}
+        P_{pp} &        \\
+               & I_{ww} \\
+    \end{bmatrix}
+\end{align}
+with $I_{ww}$ an identity matrix of the size equal to the number of well equations.   This leads to a coarse system computed via
+\begin{align}
+    \begin{bmatrix}
+		R_{pp} &       \\
+		       & I_{ww}
+	\end{bmatrix}
+	\begin{bmatrix}
+		A_{pp}^h & A_{pw}^h \\
+		A_{wp}^h & A_{ww}^h
+	\end{bmatrix}
+	\begin{bmatrix}
+	    P_{pp} &       \\
+		       & I_{ww}
+	\end{bmatrix} =
+	\begin{bmatrix}
+	    R_{pp} A_{pp}^h P_{pp}   & R_{pp} A_{pw}^h \\
+	    A_{wp}^h P_{pp} & A_{ww}^h
+	\end{bmatrix} =
+	\begin{bmatrix}
+		A_{pp}^H & A_{pw}^H \\
+		A_{wp}^H & A_{ww}^H
+	\end{bmatrix}
+\end{align}
+with $A_{ww}^H = A_{ww}^h$ and the terms in $A_{pw}^H$ and $A_{wp}^H$ representing effective coarse-level well transmissibilities obtained by a weighted sum of fine-scale transmissibilities of current well's perforations within each dual coarse cell.   The well equations are eventually resolved by the coarsest-level solver and well unknowns keep their values through the prolongation process, while smoothers deal with remaining local errors.   We also remark that presence of wells bears no effect on the pressure basis functions: no additional basis functions for wells are introduced, and diagonal contributions of well transmissibilities to the flow matrix are effectively neglected during the smoothing procedure (by enforcing the zero row sum condition necessary to guarantee partition of unity preservation).
 
 % ===================== SECTION =====================
 \section{Numerical Examples}
+\label{sec:msrsb_examples}
 
 \subsection{Test Cases Setup}
 
@@ -56,3 +942,4 @@
 
 % ===================== SECTION =====================
 \section{Summary}
+\label{sec:msrsb_summary}

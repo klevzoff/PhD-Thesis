@@ -1,12 +1,28 @@
 \documentclass{report}
 
+% Set input file encoding to UTF-8
+\usepackage[utf8]{inputenc}
+
 % Use Stanford Thesis Package
 \usepackage{suthesis-2e}
 
 % Additional packages
+\usepackage{amssymb,amsmath,amsfonts,mathtools}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{bm}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{graphbox}
+\usepackage{multirow}
+\usepackage{braket}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[numbers,sort&compress]{natbib}
+\bibliographystyle{abbrvnat}
 
+\captionsetup{size=small}
+\captionsetup[sub]{size=small}
 
 % Set up link and citation colors
 \hypersetup{
@@ -16,10 +32,35 @@
     urlcolor={blue!80!black}
 }
 
+% Set up custom autoref link text
+\def\chapterautorefname{Chapter}
+\def\sectionautorefname{Section}
+\def\subsectionautorefname{Subsection}
+\def\itemautorefname{}
+
+% Additional math commands
+\newcommand{\tensorOne}[1]{\bm{#1}}
+\newcommand{\tensorTwo}[1]{\bm{#1}}
+\newcommand{\tensorFour}[1]{\mathbb{#1}}
+\newcommand{\linearOperator}[1]{\mathcal{#1}}
+
+\renewcommand{\vec}[1]{\tensorOne{#1}}
+\newcommand{\mat}[1]{#1}
+
+\renewcommand{\P}{\linearOperator{P}}
+\newcommand{\R}{\linearOperator{R}}
+\newcommand{\M}{\linearOperator{M}}
+
+% New math operators to be typeset in normal text
+\DeclareMathOperator{\Diag}{diag}
+\DeclareMathOperator{\Rowsum}{rowsum}
+
+\newcommand{\Colorcircle}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
+\newcommand{\Colorsquare}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
+
 % Basic thesis information
 \dept{Energy Resources Engineering}
-\title{Scalable Multiscale Solvers for Poromechanical Problems\\
-in Geological Formations}
+\title{Multiscale Solvers for Subsurface Poromechanical Problems}
 \author{Sergey Klevtsov}
 \principaladviser{Hamdi Tchelepi}
 \firstreader{Louis Durlofsky}
@@ -51,7 +92,6 @@ in Geological Formations}
 
 \appendix
 
-\bibliographystyle{plain}
 \bibliography{references}
 
 \end{document}
