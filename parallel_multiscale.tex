@@ -1,28 +1,231 @@
 \chapter{Parallel Multilevel Multiscale Solver}
 \label{ch:parallel_multiscale}
 
+The goal of a multiscale solver framework is to accelerate the linear solution of large linear systems arising in high fidelity simulations.   To this end, the solver must exhibit not only algorithmic scalability explored earlier in \autoref{ch:multiscale_poromechanics}, but also implementation scalability, i.e. the ability to maintain parallel execution efficiency on large computing clusters.   The ultimate performance measure of a preconditioner is time-to-solution, i.e. a combination of the time it takes to pre-compute and populate data structures for a given linear system (setup time) and the time taken by the iterative scheme to arrive at the solution, which a combination of the number of iterations and the cost per iterations.   To demonstrate scalability, we implemented the methods proposed in \autoref{ch:multiscale_poromechanics} in the parallel simulation framework presented in \autoref{ch:geosx_framework}, building on the efficient data structures, programming models and interfaces to state-of-the-art linear algebra packages that the framework provides.   This chapter is organized as follows. \autoref{sec:par_implementation} describes the adaptation of the algorithms to parallel environments (both shared and distributed memory) and justifies the design decisions and trade-offs.   In \autoref{sec:par_kernels} we analyze in detail the performance of each of the computational kernels that make up the setup and solution phases of the preconditioner.   \autoref{sec:par_results} presents an investigation into parallel efficiency and scalability using several challenging test cases with both structured and unstructured grids, and compares overall performance of the preconditioner to state-of-the-art multigrid methods.    Finally, we conclude with a summary in \autoref{sec:par_summary}.
+
 % ===================== SECTION =====================
 \section{Parallel Implementation and Data Structures}
+\label{sec:par_implementation}
 
-\subsection{Generic Multilevel Preconditioner Design}
+\subsection{General Multilevel Preconditioner Design}
+\label{subsec:par_impl_prec_design}
 
-\subsection{Mesh Representation for MsRSB}
+We begin by describing the overall structure of the developed preconditioning framework.   While present work focuses on a specific flavor of multiscale methods, it is important to keep the high-level code design general enough that other types of multilevel methods may be subsequently implemented (either for comparison or practical use), for example classical MsFE/MsFV, multigrid flavors, or recently introduced Multigrid Reduction (MGR) approach to multi-physics problems \cite{Bui2020}.   To this end, we implement a modular design in which computational details of constructing transfer operators, smoothers and coarse systems are hidden behind implementations of an abstract \texttt{LevelBuilder} interface.
 
-\subsection{Interpolation Operators}
+More specifically, the multilevel preconditioner is a generic component only parametrized by the type of linear algebra back-end used.   It contains an ordered collection of levels, with each level storing a \texttt{LevelBuilder} instance, along with a handle to the system matrix of that level and some intermediate temporary vectors needed for the multilevel up and down cycle.   Responsibilities of the preconditioner object include:
+\begin{itemize}
+    \item coordinating the construction of multilevel hierarchy subject to user-provided constraints, such as maximum number of levels or target coarse problem size;
+    \item invoking the setup routine of each level, passing in previous level's matrix and data as input, as well as coarsest-level solver setup;
+    \item driving the up- and down- cycle (or potentially using cycle types other than standard V-cycle), including application of pre- and post-smoothers on each level, invoking transfer and coarse-level operators and updating residual/solution vectors.
+\end{itemize}
+On the other hand, level builders are responsible for:
+\begin{itemize}
+    \item constructing and maintaining all method-specific data structures;
+    \item computing grid transfer, coarse-level and smoothing operators, and providing high-level access to them (as general \texttt{LinearOperator} instances).
+\end{itemize}
+With this separation of concerns, a particular method implementation can choose the most efficient representation of each operator.   For example, in \cite{Manea2015,Manea2016} MsFE operators on a Cartesian grid were stored in unassembled form based on dual grid features, exploiting the structure of the problem and allowing for highly efficient and load-balanced application.   These implementation details would be encapsulated in specific classes implementing the `LinearOperator` interface.   Similarly, a smoother operator can delegate the work to a generic pointwise smoother, or implement a custom technique such as plane relaxation, or block-triangular smoothing for coupled problems.
+
+\subsection{Data Structures for MsRSB}
+\label{subsec:par_impl_data_struct}
+
+With the general aspects of the multilevel framework in place, a specific level builder class is developed for MsRSB, which stores a representation of mesh topology and mappings between current and previous/next levels, as well as transfer operators.
+
+\subsubsection{Mesh Representation and Parallel Decomposition}
+
+An MsRSB mesh at every level consists of two abstract groups of entities (nodes and cells).   For each of the two groups we store:
+\begin{itemize}
+    \item local (within process) and global (unique and contiguous across parallel processes) indexing;
+    \item an adjacency map to the other entity type (also referred to as \textit{dual} entity, not to be confused with the dual coarse grid), representing topology graphs $\mathcal{G}_E$ and $\mathcal{G}_E^T$ (even though they contain redundant information, we store both maps for ease of adjacency access by both cell and node index);
+    \item an arbitrary number of associated data arrays that may be used to hold additional information used in coarsening (e.g. structured indices if available, maps to other mesh levels, etc.)
+\end{itemize}
+
+The mesh is decomposed between parallel processes such that each cell and each node is uniquely \textit{owned} by one process.   Each process stores its owned objects plus a \textit{halo} of \textit{ghost} objects that are owned by other processes.   Owned and ghost objects are referred together as locally \textit{present}.   This allows processes that represent adjacent portions of the computational domain to have a consistent view of the mesh data, which is important when performing coarsening.   At each level the mesh stores a single halo layer of cells that share at least one node with any of the owned cells.   As for nodes, at the base (finest) level all nodes adjacent to any present cell are stored, but at other levels only coarse nodes corresponding to locally present fine nodes are stored (full adjacency map of ghost cells is not required at coarse levels).
+
+An important feature of mesh levels is that agglomerates of fine-level cells that make up a coarse-level cell always align with the partitioning of the fine-level mesh across parallel processes.   Thus, no coarse cell is ever split across two or more processes, and each is owned by the same rank that owns all of the fine cells that make up the coarse cell.   By the same principle, coarse nodes that fall on process boundary are shared between processes but uniquely owned by the same process that owns the corresponding fine node.   Thus, the parallel distribution of every level is completely inherited from the base simulation mesh, giving each process full local access to the data in the entire hierarchy.   This imposes a requirement that the local partitioning scheme must be compatible with the global decomposition.   For example, if the mesh is globally decomposed using a graph partitioner, it must also be used in coarsening, and structured coarsening cannot be used even the mesh is structured.    While in principle a method could be altered to allow coarse cells to be split across processes, allowing for more flexibility in the choice of coarse grids, we find that this alignment requirement is not too restrictive while allowing most of the coarsening to be carried out completely locally, without any communication, as described later in \autoref{subsec:par_kernels_coarsening}.   In general, we always try to use the best decomposition algorithm available for a particular problem, both locally and globally.   \autoref{fig:par_decomp} illustrates the idea with examples of parallel decomposition of two mesh levels.
+
+\begin{figure} [htbp]
+\begin{subfigure}[t]{0.45\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/Cube_parallel_part}}
+  \caption{\label{fig:par_decomp_struct}}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.45\textwidth}
+  \centerline{\includegraphics[width=\linewidth]{figs/MazuModel2_parallel_part}}
+  \caption{\label{fig:par_decomp_unstruct}}
+\end{subfigure}
+\caption[Parallel decomposition of multiscale mesh levels]{\label{fig:par_decomp} Parallel decomposition of mesh levels for structured Cartesian (left) and fully unstructured tetrahedral (right) meshes.   Solid colors indicate locally owned cells, while ghosted cells are semi-transparent.   Coarse nodes are shown as \Colorcircle{red}.}
+\end{figure}
+
+Compared to the mesh data structure in the main simulation code described in \autoref{ch:geosx_framework}, the multiscale mesh is more lightweight and has the following distinctions:
+\begin{itemize}
+    \item only parts of the domain relevant to the specific physics are represented (for example, if multiscale solver is used for a flow problem defined only in the reservoir zone of a larger physical domain);
+    \item faces/edges of the mesh are not stored, and there is no grouping of cells into regions and sub-regions, the numbering of cells is contiguous throughout the domain;
+    \item both $\mathcal{G}_E$ and $\mathcal{G}_E^T$ are stored in most general compressed row form using \texttt{ArrayOfSets} data structure;
+    \item all locally owned mesh entities are stored together before ghosts, allowing for better data locality when processing the local mesh partition.
+\end{itemize}
+
+We note that the mesh data structure described above is only required during the initial construction of level hierarchy and computing the basis function supports for a new problem.   As long as a sequence of linear problems with varying coefficients defined on the same underlying grid is being solved, the interpolation operators can be updated algebraically without use of the mesh information, which can be discarded after initial setup to reduce memory footprint.
+
+\subsubsection{Level Operators}
+
+Each level needs to store prolongation and restriction operators, as well as the coarse-level matrix once it's computed during the setup process.   Given that the framework is targeting fundamentally unstructured problems, level system matrices are stored using very general Compressed Sparse Row (CSR) format, directly using the chosen linear algebra back-end's specific CSR data structures for copy-free interoperability with the library's computational kernels.   We note that while some other sparse matrix representations (most notably ELL) have characteristics favorable for highly vectorized CPU and GPU architectures, CSR is the only format that is widely supported across libraries and has lower memory footprint for highly irregular (i.e. varying number of non-zeros per row) matrices arising from unstructured grid discretizations.
+
+The prolongation operator simultaneously encodes the structure of basis function supports and stores the interpolation weights.   Logically it can be viewed either column-wise, where each column's non-zero values represents the weights attached to a particular coarse-level basis function, or row-wise, with each row containing weights of all coarse basis functions for a single fine-scale degree-of-freedom.   Given that basis functions are designed to have local support (i.e. interpolate a relatively small and compact portion of the domain), the prolongation operator is sparse, and either compressed-column or compressed-row representation is appropriate.   The MsRSB algorithm never manipulates basis functions one-by-one but rather updates the entire operator, and some steps like rescaling the weights \eqref{eq:msrsb_rescale} are more optimally implemented as row-wise kernels due to better data locality.   Thus we have chosen to also store the prolongation operator in CSR format.
+
+The restriction operator does not need to be explicitly assembled and stored as long as Galerkin coarse problem definition with $R = P^T$ is used.   An implicit transpose operator is created instead that wraps a handle to $P$ and invokes a transpose sparse matrix-vector multiply (SpMV) kernel when invoked.   For cell-centered degrees-of-freedom the preconditioner also supports the option of using MsFV restriction operator $R = R^{cv} = (P^0)^T$, for which an explicit transpose of the tentative prolongation is computed and stored in CSR format.
+
+Parallel distribution of CSR matrices at each level matches ownership of corresponding fine/coarse support points.   Specifically, each parallel process physically stores a contiguous set of rows corresponding to fine mesh nodes/cells (depending on problem type) owned by that process.   In addition, although CSR columns are not physically distributed, a global column map is created which assigns ownership of a range of columns to the process that owns corresponding coarse mesh nodes/cells.   The underlying data structure may use the map to break locally stored data into ''diagonal'' and ''off-diagonal'' blocks and establish communication patterns for off-processor entries in sparse matrix kernels.
 
 % ===================== SECTION =====================
-\section{Computational Kernels and Complexity Analysis}
+\section{Computational Kernels}
+\label{sec:par_kernels}
+
+The usage of a preconditioner involves a setup/compute phase (executed once prior to start of Krylov iteration) and a solve/apply phase called during the iteration.   Further, MsRSB workflow consists of the following steps:
+\begin{enumerate}
+\item Setup Phase:
+    \begin{enumerate}
+        \item Construct the coarse grid.
+        \item Select basis supports and build tentative prolongation $P^0$.
+        \item Apply restricted smoothing iteration \eqref{eq:msrsb_update}-\eqref{eq:msrsb_check} to obtain $P$.
+        \item Create a restriction operator $R$.
+        \item Setup smoothers if necessary.
+        \item Compute coarse-level operator $A^H = RA^hP$.
+        \item (Recursively) setup next level.
+    \end{enumerate}
+\item Solve Phase:
+    \begin{enumerate}
+        \item Apply pre-smoother $\mathcal{M}_{S,pre}^{-1}$.
+        \item Restrict the right-hand side: $\vec{r}^H = R\vec{r}^h$.
+        \item (Recursively) perform coarse-grid solve.
+        \item Interpolate the error update $\vec{e}^h = P\vec{e}^H$ and update solution $\vec{u}$ and right-hand side $\vec{r}$.
+        \item Apply post-smoother $\mathcal{M}_{S,post}^{-1}$.
+    \end{enumerate}
+\end{enumerate}
+In this section we take a more detailed look at practical aspects of parallel implementation for each of the above steps.
 
 \subsection{Coarsening}
+\label{subsec:par_kernels_coarsening}
 
-\subsection{Support Construction}
+The mesh coarsening procedure is carried out simultaneously on parallel processes and additionally accelerated using multiple threads within each process.   While many steps of the algorithm are implemented using parallel \texttt{RAJA} loop constructs and memory space-aware containers described in \autoref{ch:geosx_framework}, we do not consider GPU acceleration for this part of the process, since it is involves primarily manipulation of indices, is heavily memory-bound and is unable to utilize and benefit from abundant compute units available.
+ 
+\subsubsection{Cell Partitioning}
+\label{subsubsec:par_kernels_coarsening_cells}
+
+The framework supports a number of ways in which cell agglomerates can be constructed.   As mentioned before, coarse partitions are computed independently on each process only for the locally owned subset of cells, and the chosen method must be compatible with the type and parallel distribution of the mesh.
+\begin{itemize}
+\item Cartesian partitioning is embarrassingly parallel: each thread is assigned a range of local fine cells, for which a coarse partition index must be computed from its fine index and cartesian coarsening ratio $C_r = (C_r^x, C_r^y, C_r^z)$.   Since the mesh data structure is designed for unstructured grids and makes no assumptions about a specific numbering of cells, we explicitly store global $ijk$-indices of every cell in a 2D array of size $N_E^h \times n_{sd}$ to facilitate the process.   Semi-coarsening in any given direction (typically $z$) is supported by resetting coarsening ratio in other directions to 1 until every rank is left with a single layer of cells.
+\item Unstructured partitioning is largely delegated to an external package: METIS \cite{Karypis1999} or Scotch \cite{Chevalier2008}. The latter is more scalable due to multi-threading support, while the former is serial and unfortunately can often be the bottleneck of coarsening, in addition to some other limitations like the maximum number of partitions supported for large meshes.   Both take cell graph description in CSR format, which is constructed from $\mathcal{G}_E^h$ in parallel: each thread in a process is assigned a range of local cells to compute connectivity for, visits the cell's adjacent nodes through $\mathcal{G}_E$ and then adjacent cells of each visited node though $\mathcal{G}_E^T$, collects, sorts and counts all visited neighbor cells on the thread-private stack space and filters those that match connectivity threshold.   The kernel is executed twice: once to compute the exact number of graph edges (since METIS does not accept a graph description with gaps between rows, the allocated capacity of each row must be equal to its size), and once more to actually populate the list into the target \texttt{CRSMatrix} object which is allocated in between the kernels.   A different procedure is employed if matrix-based weights are to be computed using \eqref{eq:graph_matrix_weights}, which involves a thread-parallel loop over matrix rows (it is assumed that the matrix sparsity already provides correct graph connectivity).
+\item Semi-structured (2.5D) partitioning is a combination of the above two methods: first, a graph restricted to cells from a single layer is built in parallel and partitioned using the unstructured coarsening procedure, then a parallel loop is used to combine surface and z-partition indices into the final coarse partition number.   Similar to the structured case, we store explicit ''column'' and ''layer'' indices in a 2D array of size $N_E^h \times 2$ at every level.
+\end{itemize}
+Once all processes have partitioned their owned portions of the domain, a process-parallel exclusive scan is performed to adjust the global numbering of coarse cells, followed by global halo synchronization that exchanges partitioning information of ghost coarse cells.   Thus all processes have a consistent view of the distributed partitioning vector $\vec{z}_E^h$ required for the next step.   Aside from potential bottlenecks in graph partitioning packages, this stage is scalable as it is fully threaded only involves a single collective communication (scan) and neighbor point-to-point exchanges.
+
+\subsubsection{Coarse Node Selection}
+\label{subsubsec:par_kernels_coarsening_nodes}
+
+Coarse nodes are selected following the algorithm presented in \autoref{subsec:msrsb_coarsening_algorithm} adjusted for parallel processing.   The first step is computing the coarse subdomain adjacency, $\mathcal{G}_S$.   Each thread processes a range of fine nodes, visiting adjacent fine cells through $\mathcal{G}_E^h$ and collecting unique (global) partition indices for those cells from $\vec{z}_E^h$.   In addition, virtual (boundary) subdomains are handled by parallel loops over corresponding node sets.   The results are collected in an \texttt{ArrayOfSets} data structure, which guarantees that values in each sub-set are sorted and unique.   Thus each row is a compact representation the key $K_i$ of node $i$ (the set of adjacent coarse subdomains).   At this point all nodes $i$ that have $|K_i| < 3$ are removed from consideration, significantly reducing processing cost and memory footprint.   We then perform a halo exchange of $\mathcal{G}_S$ sending rows (egde sets) of shared nodes from owning processes to non-owning neighbors, so that nodes located on the outer boundary of halo layer receive their full adjacency information.    This is critical for being able to perform further analysis in a local manner correctly.
+
+In the second step the remaining nodes on each process are sorted according to their keys using lexicographical comparison of sorted sub-arrays representing $K_i$ (which is a weak total ordering).   We use a multi-threaded sort implementation provided by \texttt{RAJA}, which internally employs recursive merge-sort with tasking to achieve good load balancing between threads.   The sorting is heavily memory-bound since keys need to be accessed multiple times, and the amount of exposed parallelism is limited at final levels of the merge tree, but overall this step is quick since a relatively small fraction of nodes is processed.   After that grouping of nodes into features is performed by linearly scanning the sorted nodes, which is optimally done by a single thread but is very fast in practice.
+
+The third step involves building a feature adjacency graph $\mathcal{G}_F$, which is also a memory-bound, trivially-parallel kernel.   Each thread populates connectivity for a subset of features, traversing several adjacency lists, and while the amount of data that needs to be accessed for each feature is large (feature-to-node, node-to-cell, cell-to-node, node-to-feature maps), the end result is a very compact \texttt{ArrayOfSets} data structure since only a ''edge skeleton'' subset of nodes is considered.   Finally, one more thread-parallel loop over features is employed to walk the feature connectivity and check the keys associated with each feature.   One of feature's nodes is marked as a coarse node if its key is not included in any of the neighbors' keys (easy to check with keys being sorted sets).
+
+Each process follows the steps above to process its owned fine-scale nodes and mark coarse nodes.   A halo exchange is used to communicate coarse-node selection status of each node to the non-owning neighbors, and a process-wide parallel exclusive scan is once again needed to establish a consistent global numbering or coarse nodes.   This stage is also scalable with respect to both shared- and distributed-memory computing, since it involves mostly trivially parallel local work and limited communication.
+
+\subsection{Interpolation operators}
+\label{subsec:par_kernels_support}
+
+The next phase of setup is building the tentative prolongation operator.   Here we describe how the algorithms proposed in \autoref{sec:msrsb_interpolation} are implemented efficiently in a parallel setting.   This involves:
+\begin{enumerate}
+    \item Computing the supports structure, i.e. the sparsity pattern of $P$
+    \item Filling in initial partition of unity (the only near-null space vector we consider)
+    \item Computing the global support boundary, i.e. the set of rows of $P$ that must be rescaled.
+\end{enumerate}
+
+\subsubsection{Nodal Basis Supports}
+\label{subsubsec:par_kernels_support_nodes}
+
+The support of a nodal basis function consists of all fine-scale nodes located strictly within the union of coarse subdomains (including virtual/boundary ones) adjacent to the coarse node associated with the basis function.   This can be realized in one of two ways:
+\begin{itemize}
+    \item by processing basis functions one by one and collecting a list of fine nodes according to the above definition;
+    \item or by processing each fine node and inserting it into support of each adjacent basis function as appropriate.
+\end{itemize}
+The first approach is more natural to implement, but the second one exposes more fine-grained parallelism and allows for better load balancing across threads.   Moreover, with the row-oriented storage chosen for $P$, the sparsity pattern is more performant to construct in a row-wise manner.   Therefore in our algorithm each thread is assigned a range of fine-scale nodes (rows of $P^0$).   It visits coarse subdomains adjacent to the fine node utilizing the node-subdomain graph $\mathcal{G}_S$ previously described, builds the candidate list of relevant coarse nodes and checks its key $K_i$ against the key $K_j$ of candidate coarse node $j$.   Any node $i$ that belongs to a coarse volume interior ($|K_i| = 1$) is immediately added to the support of all adjacent basis functions.   Otherwise $i$ is included in support of $j$ \textit{iff} $K_i \subseteq K_j$, i.e. $i$ is not adjacent to any subdomain that is not in $j$'s ''area of influence''.   This is a trivially parallel kernel that requires no synchronization, though it must be executed twice: first computing the required capacity of each row, then actually filling the rows of sparsity pattern, allocating memory in between the two.   In a distributed memory setting, each process constructs sparsity for rows corresponding to its owned nodes.   Because the mesh data structure maintains a synchronized halo of both coarse cells and nodes, each process can correctly assign the full set of interpolating basis functions to each fine node without additional communication.
+
+To construct initial partition of unity, we implement a parallel version of nodal clustering algorithm described in \autoref{subsec:msrsb_nodal_basis}.   The algorithm maintains a list of nodes that need cluster assignment (the ''expansion front''), initially containing just the list of coarse nodes.   At every iteration, nodes in the list are distributed evenly among worker threads, each node's neighbors are visited and the node is assigned to the cluster that the majority of its neighbors are in.   Additional checks are made to ensure a node is not assigned outside of coarse basis functions' support.   Then, a new list is built by collecting neighbors of the current list that are still not assigned.   We use hardware atomic add instructions (through a portable interface available in \texttt{RAJA}) to coordinate appending new entries to the list from multiple threads in an efficient manner.   The algorithm terminates when the front becomes empty, i.e. all nodes have been assigned, and produces a fine-scale nodal partitioning vector $\vec{z}_N^h \in [1,N_N^H]^{N^h}$.    We then set $P_{ij}^0 = 1 \Leftrightarrow [\vec{z}_N^h]_i = j$.   No parallel communication is required, because two processes with a shared boundary are guaranteed to independently produce equivalent assignments of nodes on the process boundary to the clusters corresponding to coarse nodes located on the same shared boundary.   This is a consequence of the chosen coarsening strategy (matching coarse cells to process subdomain boundaries) and support definitions.
+
+\subsubsection{Cell Basis Supports}
+\label{subsubsec:par_kernels_support_cells}
+
+To define support of a cell-centered basis functions, we start by building the nodal clusters as described in \autoref{subsubsec:par_kernels_support_nodes}.   We then employ the algorithm described in \autoref{subsubsec:par_kernels_support_nodes} to build a coarse subdomain adjacency graph $\mathcal{G}_S^*$, however flipping the roles of cells and nodes: nodal partitions $\vec{z}_N^h$ now define subdomains and fine cells play the role of fine-scale objects whose adjacency is required.   Finally, the support sparsity pattern is built using the same algorithm as in \autoref{subsubsec:par_kernels_support_nodes} but with $\mathcal{G}_S^*$ as the input instead of $\mathcal{G}_S$.   The support of a basis function associated with a coarse cell is thus comprised of fine cells that belong exclusively to the union of nodal partitions originating from the coarse cell's nodes.   Here we avoid explicitly computing and post-processing the coarse dual grid and immediately construct ''merged'' supports (as defined in \autoref{subsec:msrsb_cell_basis}.   Initial partition of unity is produced simply using existing coarse cell partitions: we assign $P_{ij}^0 = 1 \Leftrightarrow [\vec{z}_E^h]_i = j$.   The construction of cell supports is thus also communication-free.
 
 \subsection{Restricted Smoothing}
+\label{subsec:par_kernels_msrsb}
+
+The most computationally intensive part of the setup is the calculation of basis functions via restricted smoothing \eqref{eq:msrsb_update}-\eqref{eq:msrsb_check}.   This can be done on the CPU or the GPU if the linear algebra back-end (e.g. \textit{hypre}) is built with GPU support.   The implementation of each step is described below.
+
+\subsubsection{Iteration Matrix}
+\label{subsubsec:par_kernels_msrsb_matrix}
+
+The $\ell_1$-Jacobi iteration matrix of \eqref{eq:msrsb_update} given by 
+\begin{align}
+    G = I - \omega D^{-1} \widetilde{A}
+    \label{eq:msrsb_iteration_matrix}
+\end{align}
+can either be applied implicitly (as a sequence of elementary matrix operations) or built explicitly.   Given that the operations involved need to be applied many times during the course of smoothing iteration, we pre-compute it to minimize both floating point operations and kernel launch overhead.   This involves the following steps:
+\begin{enumerate}
+    \item Separate component filter removes entries corresponding to coupling blocks from the sparsity pattern according to \eqref{eq:blk_stiff_SDC}.   This step is only needed when number of degree-of-freedom components is greater than 1 (e.g. for mechanics problems).   In our implementation unknowns are ordered by collocation point, so the sparsity pattern is compressed afterwards to avoid wasting memory bandwidth.
+    \item The M-matrix enforcement kernel applies \eqref{eq:msrsb_mpfa_filtering_offd}-\eqref{eq:msrsb_mpfa_filtering} to each row modifying the entries as appropriate, but preserving the sparsity pattern.
+    \item Compute $G$ via \eqref{eq:msrsb_iteration_matrix}.   Since $G$ has the same sparsity pattern as $\widetilde{A}$, the modification is done in-place.   Left multiplication by $D^{-1}$ amounts to row scaling of $\widetilde{A}$, therefore the entire kernel is also mapped to threads and executed row-wise.
+\end{enumerate}
+All kernels operate directly in the target memory space (CPU or GPU) and no parallel communication is required.   The execution is memory-bound on both architectures.    A more optimal implementation on the GPU can be achieved by assigning a warp of threads per row instead of a single thread and accessing values in a coalesced manner; however this is more difficult to express in the \texttt{RAJA} programming model and is outside the scope of this work.
+
+\subsubsection{Prolongation Update}
+\label{subsubsec:par_kernels_msrsb_update}
+
+The computation of prolongation operator update is the most computationally intensive part of MsRSB setup.   It is implemented in four steps:
+\begin{enumerate}
+    \item Compute the next candidate $\bar{P}^{n+1}$ via \eqref{eq:msrsb_update}.   This is a parallel Sparse Matrix-Matrix (SpMM) multiply operation which extends the support of each basis function in $P^n$ by one layer of points in each direction (according to the stencil of $A^h$).   Parallel communication is required to exchange sets of remote rows that are involved in computation of the local range of result matrix rows; it has the same communication pattern as a standard halo exchange.   A large degree of parallelism is available within each process due to independent computation between rows of the product.   We take advantage of the efficient and carefully optimized SpMM implementations available in the linear algebra back-ends.
+    \item Truncate entries of $\hat{P}^{n+1}$ to the sparsity pattern of $P^n$ via \eqref{eq:msrsb_restrict}.   This is a local (no communication) memory-bound row-wise operation that primarily involves comparison of multiple column indices and copying values (we keep around a scratch copy of $P^n$ to facilitate this).
+    \item Rescaling rows of $\hat{P}^{n+1}$ to unit row sums according to \eqref{eq:msrsb_rescale}, which is only performed on a subset of rows of $P$ corresponding to union support boundary.   This is a also fully local and highly parallel kernel.
+    \item Convergence check \eqref{eq:msrsb_check} which involves computing difference norm between two matrices with identical sparsity patterns.   This operation requires cooperation at the thread and process level to reduce the and broadcast the final norm value.
+\end{enumerate}
+In a fully optimized implementation steps 1 and 2 could be fused together into a single operation: given a target sparsity pattern, the SpMM kernel might be able to avoid additional work and memory accesses involved in building sparsity pattern of the result and computing entries that are eventually discarded.   Such an implementation is currently not provided by any of the supported linear algebra packages and cannot not be developed externally, unlike some of the more straightforward custom kernels.   We consider this an important future optimization.
+
+In practice, the number of smoothing iterations required to obtain good quality basis functions is on the order of 10--20 on the first application of the preconditioner and 1--5 on subsequent, assuming the matrix changes mildly between nonlinear iterations and simulation time steps.   Note that in general at least one iteration must always be performed in order to assess convergence (unless system the matrix is known to be constant, in which case updating the preconditioner setup can be skipped altogether).   We employ some practical tricks to further reduce computational load without sacrificing robustness, such as only checking convergence every few iterations and adjusting check frequency based on previous convergence history.
+
+\subsection{Coarse Operator}
+\label{subsec:par_kernels_coarse}
+
+Computation of coarse-scale operator $A^H = RA^hP$ is another computationally intensive kernel in the setup which involves multiple rounds of neighbor communication.   Unlike the restricted smoothing update however, it only needs to be carried out once per setup, therefore its overall impact on setup cost is fairly mild.   Unlike some recent parallel multiscale methods focusing on Cartesian grids \cite{Manea2016,Manea2019,Manea2021}, we cannot exploit a known structure of $P$ to specialize product computation which must handle general sparse matrices.   Linear algebra libraries that contain a multigrid preconditioner typically also provide specialized matrix triple product routines (optimized for the Galerkin case of $R = P^T$); we take advantage of them whenever possible, falling back on two-step general SpMM in other cases.   In preactice, we can avoid recomputing the coarse system if the prolongation operator hasn't changed significantly since the previous setup.   The cumulative number of iterations performed in prolongation smoothing since last computation of $A^H$ is used as a proxy metric for the amount of change accumulated in $P$; it is sufficient to only recompute $A^H$ every 5--10 iterations of restricted smoothing.
 
 \subsection{Application of the Preconditioner}
+\label{subsec:par_kernels_apply}
+
+\subsubsection{Smoothers}
+\label{subsec:par_kernels_apply_smoothers}
+
+The choice of smoother $\mathcal{M}_S$ has a major impact on robustness and scalability of a multilevel preconditioner, since it is responsible for the bulk of the computational work across all levels of the hierarchy.   The requirements for the smoother thus are:
+\begin{itemize}
+    \item must be efficient at eliminating high-frequency errors
+    \item should have a reasonable setup cost and a scalable application kernel
+\end{itemize}
+Complex smoothers such as incomplete factorizations (ILU family and its block variants) are often a method of choice for a local stage in two-stage preconditioner (CPR) in reservoir simulation.   They are powerful at dealing with local error, but their setup is expensive and not easily parallelizable.   Simple pointwise relaxation schemes such as Jacobi, Gauss-Seidel, on the other hand, have inexpensive setup and are highly scalable, but suffer from weaker convergence characteristics.   The choice of a proper smoother is often problem-dependent and is a balancing act between the above two requirements that are fundamentally at odds.
+
+Our multilevel framework provides the user with a choice from a large number of smoothers that the selected linear algebra backend exposes.   For practical reasons outlined above, present work only considers scalable methods:
+\begin{itemize}
+    \item Jacobi is a simple smoother with trivial setup and embarrassingly parallel application kernel, but oftentimes lackluster convergence.   Its main benefit is independence of smoothing properties from the number of processors.
+    \item (Symmetric) Gauss-Seidel have much better convergence characteristics and are often default choices in multigrid solvers.    Parallelization approaches of GS include red-black ordering (multi-color in general) or hybrid versions in which full GS is applied to processor-wise diagonal blocks while ''off-processor'' entries are lagged by one sweep similar to block-Jacobi.   Despite a seeming dependence on number of processors, hybrid smoothers have been shown to exhibit good smoothing properties independent of parallelism \cite{Baker2011} and are the default choice in \textit{hypre}' BoomerAMG solver \cite{Henson2002}.
+    \item Polynomial smoothers (such as Chebyshev) have the advantage of only requiring matrix-vector (SpMV) operations.   The downside is somewhat expensive (though still scalable) setup stage that must perform iterative eigenvalue estimation.   Their convergence and performance properties are often comparable to those of Gauss-Seidel.
+\end{itemize}
+Pre- and post-smoothers can be selected independently and either of them can be completely disabled.   The number of smoothing sweeps is another problem dependent tuning parameter that must carefully balance additional work per iteration with improvements in convergence.   In addition, we often replace Jacobi and Gauss-Seidel with their $\ell_1$ versions which attempt to guarantee a convergent smoother by using a modified diagonal \cite{Baker2011}.
+
+\subsubsection{Grid Transfer}
+\label{subsec:par_kernels_apply_transfer}
+
+Residual restriction, interpolation of coarse-grid error correction and residual update after smoothing are the remaining operations of the solution phase.   All of them are straightforward SpMV kernels (or transpose-SpMV in case of restriction) that are known to be relatively scalable on modern architectures and have highly optimized implementations in linear algebra libraries (e.g. overlapping computation and communication is commonly done).   Overall they take a relatively minor portion of execution time.
 
 % ===================== SECTION =====================
 \section{Numerical Results}
+\label{sec:par_results}
 
 \subsection{Test Cases Setup}
 
@@ -34,3 +237,4 @@
 
 % ===================== SECTION =====================
 \section{Summary}
+\label{sec:par_summary}

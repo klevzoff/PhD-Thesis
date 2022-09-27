@@ -24,6 +24,9 @@
 \captionsetup{size=small}
 \captionsetup[sub]{size=small}
 
+% Number subsubsections to enable referencing them
+\setcounter{secnumdepth}{3}
+
 % Set up link and citation colors
 \hypersetup{
     colorlinks,
@@ -36,6 +39,7 @@
 \def\chapterautorefname{Chapter}
 \def\sectionautorefname{Section}
 \def\subsectionautorefname{Subsection}
+\def\subsubsectionautorefname{Subsubsection}
 \def\itemautorefname{}
 
 % Additional math commands
@@ -60,7 +64,7 @@
 
 % Basic thesis information
 \dept{Energy Resources Engineering}
-\title{Multiscale Solvers for Subsurface Poromechanical Problems}
+\title{Multiscale Solver for Subsurface Poromechanical Problems}
 \author{Sergey Klevtsov}
 \principaladviser{Hamdi Tchelepi}
 \firstreader{Louis Durlofsky}
