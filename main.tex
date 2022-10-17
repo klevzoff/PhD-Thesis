@@ -1,4 +1,4 @@
-\documentclass{report}
+\documentclass[12pt]{report}
 
 % Set input file encoding to UTF-8
 \usepackage[utf8]{inputenc}
@@ -16,6 +16,9 @@
 \usepackage{graphbox}
 \usepackage{multirow}
 \usepackage{braket}
+\usepackage{minted}
+\usepackage{mdframed}
+\surroundwithmdframed{minted}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usepackage[numbers,sort&compress]{natbib}
@@ -58,6 +61,8 @@
 % New math operators to be typeset in normal text
 \DeclareMathOperator{\Diag}{diag}
 \DeclareMathOperator{\Rowsum}{rowsum}
+\DeclareMathOperator{\Trace}{tr}
+\DeclareMathOperator{\Nnz}{nnz}
 
 \newcommand{\Colorcircle}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
 \newcommand{\Colorsquare}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}

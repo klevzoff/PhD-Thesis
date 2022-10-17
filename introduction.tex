@@ -1,8 +1,10 @@
 \chapter{Introduction}
+\chaptermark{Introduction}
 \label{ch:introduction}
 
 % ===================== SECTION =====================
 \section{Motivation}
+\label{sec:intro_motivation}
 
 Understanding, quantifying and predicting the behavior of subsurface poromechanical systems is of critical importance in many applications in the energy industry and beyond, from geological storage of CO\textsubscript{2}, to oil and gas production, to geothermal reservoirs, to management of groundwater resources.   In many of these applications, fast and accurate predictions are necessary to optimize the cost of operation, assess uncertainties and manage risks associated with complex interactions between various physical phenomena, including land subsidence, induced seismicity, fault reactivation, seal and wellbore integrity.   With the increasing cost and complexity of these projects, simple analytical models no longer provide the necessary level of detail, and numerical modeling has become an indispensable tool aiding researchers, engineers and regulatory agencies alike.
 
@@ -16,12 +18,135 @@ At the same time, improvements in design and manufacturing of processing units h
 
 % ===================== SECTION =====================
 \section{Problem Statement}
+\label{sec:intro_problem}
 
-\subsection{Governing Equations and Discrete Problem}
+\subsection{Mathematical Model of Poromechanics}
+\label{subsec:intro_problem_model}
 
-\subsection{Solution Approaches for Two-way Coupled Systems}
+Subsurface physics in the applications of interest is governed by a coupled system of linear momentum balance conservation for the system consisting of a porous solid skeleton and fluid mass occupying the pore space, and mass conservation equations for each of the species making up the fluid phases.   For simplicity, we restrict ourselves to single-phase single-component isothermal problems and neglect chemical reactions (although an extension of present work to multiphase poromechanics will also be addressed).   Moreover, for the time scales of interest mechanical behavior can be considered quasi-static, and realistic deformation ranges permit the use of small-strain kinematics theory.   Additionally, while fracture mechanics is an important part of subsurface systems, we consider treatment of fractures to be a future extension of the algorithms presented herein.
+
+We assume a macroscopic (continuum) description of the porous medium saturated with fluid.   Given a poromechanical domain $\Omega$ with boundary $\Gamma$ partitioned independently into non-overlapping Dirichlet and Neumann boundaries for displacement and flow variables, $\Gamma = \Gamma_u^D \cup \Gamma_u^N = \Gamma_f^D \cup \Gamma_f^N$, $\Gamma_u^D \cup \Gamma_u^N = \Gamma_f^D \cup \Gamma_f^N = \emptyset$, and a time interval $\mathrm{T} = (0, t_{max}]$ we are interested in finding a vector field $\vec{u}$ of solid skeleton displacements (with respect to some initial configuration) and a scalar fluid (pore) pressure field $p$ such that \cite{Coussy2004}
+\begin{align}
+    \nabla \cdot \left( \tensorTwo{\sigma}^\prime - b p \tensorTwo{1} \right) + \rho\vec{g} &= \vec{0} & \mbox{ on } \Omega \times \mathrm{T} & & \mbox{ (momentum balance) } \label{eq:momentum_balance} \\
+    \frac{\partial}{\partial t}(\phi \rho_f) + \nabla \cdot (\rho_f \vec{w}) + m &= 0 & \mbox{ on } \Omega \times \mathrm{T} & & \mbox{ (mass balance) } \label{eq:mass_balance}
+\end{align}
+subject to boundary conditions
+\begin{align}
+    \vec{u} &= \bar{\vec{u}} & \mbox{ on } \Gamma_u^D \times \mathrm{T} & & \mbox{ (prescribed displacement) }\label{eq:momentum_balance_bc_disp} \\
+    \left( \tensorTwo{\sigma}^\prime - b p \tensorTwo{1} \right) \cdot \vec{n}_\Gamma &= \bar{\vec{t}} & \mbox{ on } \Gamma_u^N \times \mathrm{T} & & \mbox{ (prescribed traction) } \label{eq:momentum_balance_bc_trac} \\
+    p &= \bar{p} & \mbox{ on } \Gamma_f^D \times \mathrm{T} & & \mbox{ (prescribed pressure) } \label{eq:mass_balance_bc_pres} \\
+    \vec{w} \cdot \vec{n}_\Gamma &= \bar{\vec{w}} & \mbox{ on } \Gamma_f^N \times \mathrm{T} & & \mbox{ (prescribed flux) }\label{eq:mass_balance_bc_flux}
+\end{align}
+and initial conditions
+\begin{align}
+    \vec{u}(\vec{x}, 0) &= \vec{u}^0(\vec{x}) & \vec{x} \in \Omega & & \mbox{ (initial displacement) } \label{eq:momentum_balance_ic_disp} \\
+    p(\vec{x}, 0) &= p^0(\vec{x}) & \vec{x} \in \Omega & & \mbox{ (initial pressure) } \label{eq:mass_balance_ic_pres}
+\end{align}
+Here $b$ is Biot's coefficient (assumed constant and equal to 1 for incompressible solid grains), $\phi$ is porosity, $\rho = \phi \rho_f + (1-\phi) \rho_s$ is the mixture density with $\rho_f$ and $\rho_s$ the fluid and solid grain densities, respectively, $\vec{g}$ is the gravity vector, $\vec{w}$ is the superficial velocity of the fluid, $m$ is the fluid source term (expressed as mass rate), $\vec{n}_\Gamma$ is the normal vector to the boundary surface, $\tensorTwo{\sigma}^\prime$ is the effective stress tensor, $\tensorTwo{1}$ is a rank two identity tensor and $\tensorTwo{\sigma} = \tensorTwo{\sigma}^\prime - b p \tensorTwo{1}$ is the Cauchy total stress tensor.   The system of equations is complemented by constitutive relations:
+\begin{align}
+    \tensorTwo{\sigma}^\prime &= \tensorTwo{\sigma}(\tensorTwo{\varepsilon})  & & \mbox{ (stress-strain relationship) } \label{eq:constitutive_stress} \\
+    \vec{w} &= - \frac{1}{\mu}\tensorTwo{k}\nabla(p + \rho_f g z) & & \mbox{ (Darcy's law) } \label{eq:constitutive_darcy} \\
+    \phi &= \phi(\tensorTwo{\varepsilon}, p) & & \mbox{ (porosity model) } \label{eq:constitutive_porosity} \\
+    \rho_f &= \rho_f(p), \: \mu = \mu(p) & & \mbox{ (fluid model) } \label{eq:constitutive_fluid} \\
+    \tensorTwo{k} &= \tensorTwo{k}(p,\tensorTwo{\varepsilon},\phi) & & \mbox{ (permeability model) } \label{eq:constitutive_permeability}
+\end{align}
+where $\tensorTwo{\varepsilon} = \nabla^s \vec{u}$ is the second-order strain tensor with $\varepsilon_v = \frac{1}{3}\Trace(\tensorTwo{\varepsilon})$ the volumetric strain, $\tensorTwo{k}$ is the second-order symmetric permeability tensor and $\mu$ is the fluid viscosity.   A commonly used model is linear poroelasticity, which reads
+\begin{align}
+    \tensorTwo{\sigma} &= \tensorFour{C} : \tensorTwo{\varepsilon} \\
+    \phi &= \phi_0 + \frac{(1 - b)(b - \phi_0)}{K_{dr}}(p - p_0) + b\varepsilon_v \\
+\end{align}
+with $\phi_0$ the reference porosity corresponding to undeformed state and reference pressure $p_0$, $K_{dr}$ the drained bulk modulus of solid skeleton, and $\tensorFour{C}$ is the fourth-order elastic stiffness tensor that, for isotropic materials, can be parametrized using two coefficients as $\tensorFour{C}_{ijkl} = \lambda \delta_{ij} \delta_{kl} + \mu(\delta_{ik} \delta_{jl} + \delta_{il} \delta_{jk})$ with Lame's parameters $\lambda$ and $\mu$.
+
+While the main focus of present work is on single-phase poromechanics, we also briefly address multiphase poromechanics problems, which involve simultaneous solution of mechanical deformation, multiphase flow and multi-component transport problems.   In this case equations \eqref{eq:momentum_balance}-\eqref{eq:mass_balance} are extended to a set of mass conservation equations for each component
+\begin{align}
+    \nabla \cdot \left( \tensorTwo{\sigma}^\prime - b \hat{p} \tensorTwo{1} \right) + \rho\vec{g} &= \vec{0} & \mbox{ on } \Omega \times \mathrm{T} & & \label{eq:momentum_balance_mp} \\
+    \sum\limits_\alpha\left(\frac{\partial}{\partial t}(\phi y_i^\alpha \rho^\alpha S^\alpha) + \nabla \cdot (y_i^\alpha \rho^\alpha \vec{w}^\alpha) + y_i^\alpha m^\alpha \right) &= 0 & \mbox{ on } \Omega \times \mathrm{T} & & \forall i \in [1,N_{comp}] \label{eq:mass_balance_mp}
+\end{align}
+and constitutive laws include
+\begin{align}
+    \vec{w}^\alpha &= - \frac{k_r^\alpha}{\mu^\alpha}\tensorTwo{k}\nabla(p^\alpha + \rho^\alpha g z) & & \mbox{ (generalized Darcy's law) } \label{eq:constitutive_darcy_mp} \\
+    \rho^\alpha &= \rho^\alpha(p^\alpha,\vec{y}^\alpha), \: \mu^\alpha = \mu^\alpha(p^\alpha,\vec{y}^\alpha) & & \mbox{ (phase model) } \label{eq:constitutive_fluid_mp} \\
+    k_r^\alpha &= k_r^\alpha(S^\alpha) & & \mbox{ (relative permeability) } \label{eq:constitutive_relperm_mp} \\
+    p^\alpha &= p + p_C^\alpha(S^\alpha) & & \mbox{ (capillary pressure) } \label{eq:constitutive_cappres_mp}
+\end{align}
+along with additional closure relations $\sum_\alpha S^\alpha = 1$, $\sum_i y_i^\alpha = 1$ and thermodynamic equilibrium constraints that define partitioning of components into phases and are model-dependent.   Here $\alpha$ is the phase index, $S^\alpha$ is saturation (pore volume fraction) of phase $\alpha$, $y_i^\alpha$ is fraction of component $i$ in phase $\alpha$, $k_r^\alpha$ is relative permeability, $\hat{p} = \sum_\alpha S^\alpha p^\alpha$ is average pore pressure.
+
+\subsection{Solution Approaches}
+\label{subsec:intro_problem_solution}
+
+Equations \eqref{eq:momentum_balance}-\eqref{eq:mass_balance} can be discretized in space using a conforming computational mesh and any appropriate combination of numerical methods.   Given that geological models usually describe the physical domain in terms of piecewise constant material properties on a very fine grid, low-order methods are used most often.   Common practice is to employ a hybrid two-field displacement-pressure formulation with first-order (linear) finite element method (FEM) for momentum balance equation and mass-conservative finite volume method (FVM) for mass balance, which is particularly important when a coupled transport problem is considered (although other approaches of interest, in particular collocated cell-centered finite volume methods, have been developed recently \cite{Nordbotten2016,Terekhov2020}).   Backward Euler is used for time integration, owing to its unconditional stability, resulting in an implicit method.   Given that the equations are, in general, nonlinear, Newton's method is used to drive the nonlinear residual to zero, resulting in a sequence of discrete linear systems to be solved at every time step:
+\begin{align}
+    \left[\frac{\partial \vec{r}}{\partial \vec{x}}\right] \vec{\delta x} = -\vec{r}
+\end{align}
+with $\vec{x}$ the vector of discrete unknowns (\textit{degrees-of-freedom}) and $\vec{r}$ the vector of residuals, i.e. discrete conservation law violations.
+
+The system \eqref{eq:momentum_balance}-\eqref{eq:mass_balance} is two-way coupled through the pressure term $p$ in total stress $\tensorTwo{\sigma}$ and the dependencies of porosity $\phi$ and permeability $\tensorTwo{k}$ on displacement $\vec{u}$.   The three main strategies for dealing with coupled equations are:
+\begin{itemize}
+    \item Loose coupling: time steps are performed for the two problems (deformation and flow) in a staggered manner.   This approach may quickly lose accuracy for strongly coupled systems, and is mainly used to tie together separate flow and mechanics modeling packages. 
+    \item Sequential coupling: switching back and forth between the problems, converging each one in a nonlinear loop while keeping independent variables of the other problem fixed; the time step is accepted when the outer iteration converges.   An appropriate coupling strategy must be chosen to guarantee unconditional stability \cite{Kim2011a,Kim2011b,Castelletto2015} and the rate of convergence of sequential iteration may be problem dependent.   On the other hand, only single-physics (decoupled) linear systems must be solved during iteration, and separate software modules and arbitrary numerical schemes may be employed for discretization, as long as appropriate transfer and interpolation of physical quantities is provided.
+    \item Fully implicit coupling: both equations are converged simultaneously in a nonlinear iteration.   This approach is unconditionally stable and maintains the quadratic convergence rate of full Newton's method.   On every iteration, a coupled block linear system must be solved of the form
+    \begin{align}
+        \begin{bmatrix}
+        \dfrac{\partial \vec{r}_u}{\partial \vec{u}} & \dfrac{\partial \vec{r}_u}{\partial \vec{p}} \\
+        \dfrac{\partial \vec{r}_p}{\partial \vec{u}} & \dfrac{\partial \vec{r}_p}{\partial \vec{p}}
+        \end{bmatrix}
+        \begin{bmatrix}
+            \vec{\delta u} \\
+            \vec{\delta p}
+        \end{bmatrix} = -
+        \begin{bmatrix}
+            \vec{r}_u \\
+            \vec{r}_p
+        \end{bmatrix}
+    \end{align}
+    for which specialized block-partitioned solvers have been developed and shown to be an appealing alternative to sequential methods \cite{White2015,White2019}.   The benefits of the scheme come with a price in the form of added complexity of the simulation code which must now properly assemble coupling terms in the Jacobian, as well as increased memory footprint during solution.
+\end{itemize}
+
+The introduction of multiphase component transport \eqref{eq:mass_balance_mp} brings additional challenges into the solver.   At the nonlinear level convergence difficulties are often encountered owing to the often highly nonlinear constitutive laws (for example, relative permeability models and complex equations of state), leading to a larger number of linear systems to be solved per time step.   At the linear level, since the transport problem and associated solution variables exhibit a different character compared to elliptic/parabolic flow --- namely, that of hyperbolic conservation laws with sharp local gradients --- they requires specialized solution approaches that can separate unknowns of different type and apply effective strategies to each \cite{Wallis1983,Kwok2007,Klevtsov2016,White2019}.
 
 \subsection{Iterative Solvers and Preconditioning}
+\label{subsec:intro_problem_preconditioning}
+
+Regardless of which solution approach is chosen, a sequence of linear systems $A \vec{x} = \vec{b}$ must be solved for each time step.   These systems tend to be very large, especially in the case of fully implicit coupling (order of $10^7$--$10^9$ degrees-of-freedom is not uncommon for many problems of interest), which makes direct solution impractical, and iterative solvers are employed, primarily Krylov subspace methods such as Conjugate Gradient (CG), Generalized Minimum Residual (GMRES) and Bi-conjugate Gradient Stabilized (BiCGStab) \cite{Saad2003}.   The system matrices also tend to be poorly conditioned due to wide ranges of petrophysical properties as well as grid cell shapes and volumes.   To achieve robust convergence, iterative methods rely on preconditioning, i.e. solving a modified linear system of one of the two forms
+\begin{align}
+    \mathcal{M}^{-1}A \vec{x} &= \mathcal{M}^{-1}\vec{b} & & \mbox{ (left preconditioning) } \label{eq:prec_left} \\
+    A \mathcal{M}^{-1} \vec{y} &= \vec{b}, \: \vec{x} = \mathcal{M}^{-1} \vec{y} & & \mbox{ (right preconditioning) } \label{eq:prec_right}
+\end{align}
+Here $\mathcal{M}^{-1}$ is a linear operator that approximates $A^{-1}$ (i.e. $\mathcal{M}^{-1}A$ is close to identity in some sense), but is more feasible to compute.   It's goal is to improve conditioning of the system and make it easier for the iterative scheme to converge.   For example, CG method with a symmetric positive-definite (SPD) matrix $A$ has an iterative error estimate after iteration $k$ of
+\begin{align}
+    \|\vec{x}^* - \vec{x}^k\|_A \leq 2\frac{\sqrt{\kappa} - 1}{\sqrt{\kappa} + 1} \|\vec{x}^* - \vec{x}^0\|_A
+\end{align}
+with $\kappa = \lambda_{\max}/\lambda_{\min}$ the condition number of $\mathcal{M}^{-1}A$ (or $A\mathcal{M}^{-1}$), which implies that convergence is faster when $\kappa \to 1$.   Methods for general non-symmetric matrices do not have such straightforward estimates, but their convergence rate is related to how well the eigenvalues of preconditioned matrix are clustered together \cite{Saad2003}.
+
+In practice the systems \eqref{eq:prec_left}-\eqref{eq:prec_right} are not constructed explicitly, but the action of preconditioning operator on vectors is incorporated in the iteration alongside the application of system matrix $A$, this $\mathcal{M}^{-1}$ can be any approximate solver of the original system.   In the solver workflow, $\mathcal{M}^{-1}$ is computed once for a given matrix $A$ and then repeatedly applied to vectors during iterations.   The challenge of designing a preconditioner is thus in finding an optimal balance between numerical robustness (the number of iterations of the iterative solver) and computational cost of computing and applying the operator.
+
+Moreover, the challenges presented in \autoref{sec:intro_motivation} require the linear solver to be \textit{scalable}, i.e. maintain its performance at an acceptable level regardless of the problem size (the number of degrees-of-freedom).   Krylov solvers are built on top of several operations (such as matrix-vector products and vector dot products) that are known to scale relatively well on modern hardware.   Therefore, the preconditioner is also expected to have scalable performance in order to avoid becoming the bottleneck.   Following \cite{Manea2015}, we distinguish two aspects of scalability:
+\begin{itemize}
+    \item \textit{Algorithmic} scalability is the ability of an iterative solver to maintain convergence rate 
+    \begin{align}
+        \gamma = \frac{\|\vec{r}^{k+1}\|_2}{\|\vec{r}^k\|_2}
+    \end{align}
+    below 1 and independent of the problem size.
+    \item \textit{Implementation} scalability refers to the ability of a single iteration of the solver to scale on parallel computing platforms, i.e. make efficient use of the available hardware.
+\end{itemize}
+On an separate axis, definition of scalability is also dependent on the measurement procedure involved:
+\begin{itemize}
+    \item \textit{Weak} scalability is defined by performance of the algorithm as workload (problem size) is increased proportionally to the amount of computing resources (processing cores).   Perfect weak scalability implies the time to solution remains constant, which is not achievable in practice, since other constraints such as memory bandwidth or network latency come into play.
+    \item \textit{Strong} scalability refers to the performance as computing resources are added while keeping the amount of work fixed.   This is usually expressed as parallel \textit{efficiency}
+    \begin{align}
+        \varepsilon = \frac{1}{p}\frac{T_1}{T_p}
+    \end{align}
+    with $0 < \varepsilon \leq 1$ (value of 1 corresponding to ideal speedup).
+\end{itemize}
+In present-day implicit simulation tools, the linear solver typically consumes upwards of 85\% of the total runtime.   Therefore any effective preconditioning technique that reduces the number of solver iteration while retaining algorithmic and implementation scalability is likely to have a major impact on a numerical simulator's performance.
+
+\subsection{Objectives }
+\label{subsec:intro_problem_objective}
+
+The development of scalable and efficient preconditioners for Krylov subspace solvers is a subject of active research in many application areas of numerical modeling, especially when it comes to tightly coupled multiphysics problems.   In this work we design a multilevel preconditioning framework for coupled and uncoupled poromechanical problems on general polyhedral grids by adapting a particular flavor of \textit{multiscale} methods --- known as Multiscale Restricted-Smoothing Basis (MsRSB) method --- to the domain of interest.   To out knowledge, this is the first application of MsRSB to mechanical and poromechanical problems.   We also develop an implementation of the method in a state-of-the-art massively parallel simulation framework and investigate the robustness and scalability of the method using a number of benchmark problems.
 
 % ===================== SECTION =====================
 \section{Dissertation Outline}
+\label{sec:intro_outline}
+
+In \autoref{ch:multiscale_poromechanics}, after a survey of related work on multilevel solution methods, we introduce the algorithmic framework, including adaptations of existing algorithms to discretizations of interest and our novel techniques for multilevel unstructured coarsening and constructing basis function supports based on mesh topology.   Preconditioning framework for coupled poromechanical problems in described, including proposed extensions to multiphase problems.   The chapter concludes with numerical examples designed to demonstrate robustness and algorithmic scalability of the method.   \autoref{ch:geosx_framework} describes the design and implementation of a massively parallel multiphysics simulation framework --- GEOSX --- that serves as a foundation for implementing a parallel version of the proposed methods.   We describe the programming model and our approach to performance portability across different hardware architectures, as well specific data structures and interfaces that enable the implementation of parallel algorithms and preconditioners.   A parallel implementation of the proposed multiscale preconditioners is detailed in \autoref{ch:parallel_multiscale}, which motivates the design choices made for data structures and algorithms employed.   Numerical examples are provided to demonstrate implementation scalability, as well as comparisons to state-of-the-art multigrid methods.   Finally, \autoref{ch:conclusions} concludes the dissertation with a summary of contributions and some proposed directions for future work.

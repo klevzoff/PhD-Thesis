@@ -194,7 +194,6 @@
     month = {1},
     pages = {1092--1096},
     volume = {1},
-    url = {http://www.sciencedirect.com/science/article/pii/0041555362900319},
     doi = {10.1016/0041-5553(62)90031-9},
     issn = {00415553}
 }
@@ -346,7 +345,6 @@
     pages = {284--303},
     volume = {259},
     publisher = {Elsevier Inc.},
-    url = {http://dx.doi.org/10.1016/j.jcp.2013.11.024},
     doi = {10.1016/j.jcp.2013.11.024},
     issn = {10902716},
     keywords = {Algebraic multiscale solver, Iterative multiscale methods, Multiscale methods, Scalable linear solvers}
@@ -466,12 +464,34 @@
     issn = {01689274}
 }
 
+@article{Terekhov2020,
+    title = {{Cell-centered finite-volume method for heterogeneous anisotropic poromechanics problem}},
+    year = {2020},
+    journal = {Journal of Computational and Applied Mathematics},
+    author = {Terekhov, Kirill M.},
+    volume = {365},
+    doi = {10.1016/j.cam.2019.112357},
+    issn = {03770427}
+}
+
+@misc{chai,
+    title = {{CHAI Copy-Hiding Abstractions Library}},
+    author = {{CHAI Developers}},
+    url = {https://github.com/LLNL/CHAI}
+}
+
 @inproceedings{Nilsen2020,
     title = {{Comparison between algebraic multigrid and multilevel multiscale methods for reservoir simulation}},
     year = {2020},
     booktitle = {ECMOR 2020 - 17th European Conference on the Mathematics of Oil Recovery},
     author = {Nilsen, H. and Moncorge, A. and Bao, K. and M{\o}yner, O. and Lie, K. and Brodtkorb, A.},
     doi = {10.3997/2214-4609.202035063}
+}
+
+@phdthesis{Cao2002,
+    title = {{Development ofTechniques for General Purpose Simulation}},
+    year = {2002},
+    author = {Cao, Hui}
 }
 
 @article{Blaheta1994,
@@ -523,6 +543,22 @@
     volume = {20},
     doi = {10.1137/0720034},
     issn = {0036-1429}
+}
+
+@misc{geosx,
+    title = {{GEOSX Simulation Framework}},
+    year = {2018},
+    author = {Settgast, Randolph R and White, J A and Corbett, B C and Vargas, A and Sherman, C and Fu, P and Annavarapu, C},
+    month = {3},
+    url = {https://doi.org/10.11578/dc.20201028.2},
+    doi = {10.11578/dc.20201028.2}
+}
+
+@misc{geosx-website,
+    title = {{GEOSX Website}},
+    year = {2022},
+    author = {{GEOSX Developers}},
+    url = {https://www.geosx.org/}
 }
 
 @article{Manea2022,
@@ -593,7 +629,6 @@
     author = {Wallis, J.R.},
     month = {4},
     publisher = {Society of Petroleum Engineers},
-    url = {https://www.onepetro.org/conference-paper/SPE-12265-MS?sort=&start=0&q=author%3A%22Wallis%22&from_year=1980&peer_reviewed=&published_between=on&fromSearchResults=true&to_year=1990&rows=10#},
     isbn = {978-1-55563-649-4},
     doi = {10.2118/12265-MS},
     language = {english}
@@ -886,6 +921,15 @@
     institution = {Argonne National Laboratory}
 }
 
+@book{Coussy2004,
+    title = {{Poromechanics}},
+    year = {2004},
+    author = {Coussy, Olivier},
+    publisher = {John Wiley {\&} Sons, Ltd},
+    isbn = {9780470092712},
+    doi = {10.1002/0470092718}
+}
+
 @article{Chevalier2008,
     title = {{PT-Scotch: A tool for efficient parallel graph ordering}},
     year = {2008},
@@ -898,6 +942,20 @@
     issn = {01678191},
     arxivId = {0907.1375},
     keywords = {Distributed-memory computer, Multi-threading, Parallel graph ordering, Parallel nested dissection}
+}
+
+@misc{raja,
+    title = {{RAJA Performance Portability Layer}},
+    author = {{RAJA Developers}},
+    url = {https://github.com/LLNL/RAJA}
+}
+
+@inproceedings{Beckingsale2019,
+    title = {{RAJA: Portable Performance for Large-Scale Scientific Applications}},
+    year = {2019},
+    booktitle = {Proceedings of P3HPC 2019: International Workshop on Performance, Portability and Productivity in HPC - Held in conjunction with SC 2019: The International Conference for High Performance Computing, Networking, Storage and Analysis},
+    author = {Beckingsale, David A. and Scogland, Thomas R.W. and Burmark, Jason and Hornung, Rich and Jones, Holger and Killian, William and Kunen, Adam J. and Pearce, Olga and Robinson, Peter and Ryujin, Brian S.},
+    doi = {10.1109/P3HPC49587.2019.00012}
 }
 
 @article{DeSterck2006,
@@ -921,7 +979,6 @@
     pages = {894--918},
     volume = {327},
     publisher = {Elsevier Inc.},
-    url = {http://dx.doi.org/10.1016/j.jcp.2016.09.063},
     doi = {10.1016/j.jcp.2016.09.063},
     issn = {10902716},
     keywords = {Algebraic multigrid, Iterative methods, Mixed formulation, Poromechanics, Preconditioners}
@@ -932,8 +989,7 @@
     year = {2007},
     author = {Kwok, Felix},
     number = {December},
-    pages = {201},
-    url = {https://icme.stanford.edu/sites/icme/icme-common/files/people/thesis-files/Kwok-2007.pdf}
+    pages = {201}
 }
 
 @article{Babuska1994,
@@ -947,7 +1003,7 @@
     issn = {00361429}
 }
 
-@article{Kim2011,
+@article{Kim2011a,
     title = {{Stability and convergence of sequential methods for coupled flow and geomechanics: Drained and undrained splits}},
     year = {2011},
     journal = {Computer Methods in Applied Mechanics and Engineering},
@@ -959,6 +1015,48 @@
     doi = {10.1016/j.cma.2011.02.011},
     issn = {00457825},
     keywords = {Convergence analysis, Drained split, Geomechanics, Poromechanics, Stability analysis, Undrained split}
+}
+
+@article{Kim2011b,
+    title = {{Stability and convergence of sequential methods for coupled flow and geomechanics: Fixed-stress and fixed-strain splits}},
+    year = {2011},
+    journal = {Computer Methods in Applied Mechanics and Engineering},
+    author = {Kim, J. and Tchelepi, H. A. and Juanes, R.},
+    number = {13-16},
+    volume = {200},
+    doi = {10.1016/j.cma.2010.12.022},
+    issn = {00457825}
+}
+
+@article{Kim2011c,
+    title = {{Stability, accuracy, and efficiency of sequential methods for coupled flow and geomechanics}},
+    year = {2011},
+    journal = {SPE Journal},
+    author = {Kim, J. and Tchelepi, H. A. and Juanes, R.},
+    number = {2},
+    volume = {16},
+    doi = {10.2118/119084-PA},
+    issn = {1086055X}
+}
+
+@phdthesis{White2009,
+    title = {{Stabilized finite element methods for coupled flow and geomechanics}},
+    year = {2009},
+    author = {White, Joshua A},
+    number = {3382958},
+    pages = {96},
+    keywords = {0428:Geotechnology, 0543:Civil engineering, 0765:Petroleum engineering, Applied sciences, Civil engineering, Coupled flow, Geomechanics, Geotechnology, Petroleum engineering, Porous geomaterials, Slope stability}
+}
+
+@article{Nordbotten2016,
+    title = {{Stable cell-centered finite volume discretization for biot equations}},
+    year = {2016},
+    journal = {SIAM Journal on Numerical Analysis},
+    author = {Nordbotten, Jan Martin},
+    number = {2},
+    volume = {54},
+    doi = {10.1137/15M1014280},
+    issn = {00361429}
 }
 
 @phdthesis{Jiang2007,
@@ -1005,7 +1103,7 @@
 
 @misc{trilinos-website,
     title = {{The Trilinos Project Website}},
-    author = {Team, The Trilinos Project},
+    author = {{The Trilinos Project Team}},
     url = {https://trilinos.github.io}
 }
 
@@ -1020,6 +1118,17 @@
     keywords = {050638928, 10, 1137, 35j60, 76m12, 76s05, ams subject classifications, anisotropy, doi, media, multiphase flow in porous, multiscale finite-volume method, reservoir simulations}
 }
 
+@article{Gee2011,
+    title = {{Truly monolithic algebraic multigrid for fluid-structure interaction}},
+    year = {2011},
+    journal = {International Journal for Numerical Methods in Engineering},
+    author = {Gee, M. W. and K{\"{u}}ttler, U. and Wall, W. A.},
+    number = {8},
+    volume = {85},
+    doi = {10.1002/nme.3001},
+    issn = {00295981}
+}
+
 @article{Zhou2012,
     title = {{Two-stage algebraic multiscale linear solver for highly heterogeneous reservoir models}},
     year = {2012},
@@ -1029,6 +1138,27 @@
     volume = {17},
     doi = {10.2118/141473-PA},
     issn = {1086055X}
+}
+
+@article{Beckingsale2020,
+    title = {{Umpire: Application-focused management and coordination of complex hierarchical memory}},
+    year = {2020},
+    journal = {IBM Journal of Research and Development},
+    author = {Beckingsale, D. A. and McFadden, M. J. and Dahm, J. P.S. and Pankajakshan, R. and Hornung, R. D.},
+    number = {3-4},
+    volume = {64},
+    doi = {10.1147/JRD.2019.2954403},
+    issn = {21518556}
+}
+
+@article{Verdugo2016,
+    title = {{Unified computational framework for the efficient solution of n-field coupled problems with monolithic schemes}},
+    year = {2016},
+    journal = {Computer Methods in Applied Mechanics and Engineering},
+    author = {Verdugo, Francesc and Wall, Wolfgang A.},
+    volume = {310},
+    doi = {10.1016/j.cma.2016.07.016},
+    issn = {00457825}
 }
 
 @article{Garipov2018,
@@ -1082,7 +1212,9 @@
 }
 
 @misc{hypre,
-    title = {{{\{}{\textbackslash}sl hypre{\}}: High Performance Preconditioners}}
+    title = {{{\textbackslash}textit{\{}hypre{\}}: High Performance Preconditioners}},
+    author = {{Hypre Developers}},
+    url = {https://github.com/hypre-space/hypre}
 }
 
 @article{Falgout2006AnMultigrid,
