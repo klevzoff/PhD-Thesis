@@ -10,6 +10,7 @@
 \usepackage{amssymb,amsmath,amsfonts,mathtools}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{cleveref}
 \usepackage{bm}
 \usepackage{subcaption}
 \usepackage{graphicx}
@@ -29,6 +30,9 @@
 
 % Number subsubsections to enable referencing them
 \setcounter{secnumdepth}{3}
+
+% Make reference ranges be written with an en-dash
+\newcommand{\crefrangeconjunction}{--}
 
 % Set up link and citation colors
 \hypersetup{
@@ -63,6 +67,7 @@
 \DeclareMathOperator{\Rowsum}{rowsum}
 \DeclareMathOperator{\Trace}{tr}
 \DeclareMathOperator{\Nnz}{nnz}
+\DeclareMathOperator{\Mean}{mean}
 
 \newcommand{\Colorcircle}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
 \newcommand{\Colorsquare}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
@@ -72,8 +77,8 @@
 \title{Multiscale Solver for Subsurface Poromechanical Problems}
 \author{Sergey Klevtsov}
 \principaladviser{Hamdi Tchelepi}
-\firstreader{Louis Durlofsky}
-\secondreader{Nicola Castelletto}
+\firstreader{Nicola Castelletto}
+\secondreader{Daniel Tartakovsky}
 
 % Enable lists of tables/figures
 \tablespagetrue
