@@ -114,7 +114,7 @@ The mesh coarsening procedure is carried out simultaneously on parallel processe
 
 The framework supports a number of ways in which cell agglomerates can be constructed.   As mentioned before, coarse partitions are computed independently on each process only for the locally owned subset of cells, and the chosen method must be compatible with the type and parallel distribution of the mesh.
 \begin{itemize}
-\item Cartesian partitioning is embarrassingly parallel: each thread is assigned a range of local fine cells, for which a coarse partition index must be computed from its fine index and cartesian coarsening ratio $C_r = (C_r^x, C_r^y, C_r^z)$.   Since the mesh data structure is designed for unstructured grids and makes no assumptions about a specific numbering of cells, we explicitly store global $ijk$-indices of every cell in a 2D array of size $N_E^h \times n_{sd}$ to facilitate the process.   Semi-coarsening in any given direction (typically $z$) is supported by resetting coarsening ratio in other directions to 1 until every rank is left with a single layer of cells.
+\item Cartesian partitioning is embarrassingly parallel: each thread is assigned a range of local fine cells, for which a coarse partition index must be computed from its fine index and Cartesian coarsening ratio $C_r = (C_r^x, C_r^y, C_r^z)$.   Since the mesh data structure is designed for unstructured grids and makes no assumptions about a specific numbering of cells, we explicitly store global $ijk$-indices of every cell in a 2D array of size $N_E^h \times n_{sd}$ to facilitate the process.   Semi-coarsening in any given direction (typically $z$) is supported by resetting coarsening ratio in other directions to 1 until every rank is left with a single layer of cells.
 \item Unstructured partitioning is largely delegated to an external package: METIS \cite{Karypis1999} or Scotch \cite{Chevalier2008}. The latter is more scalable due to multi-threading support, while the former is serial and unfortunately can often be the bottleneck of coarsening, in addition to some other limitations like the maximum number of partitions supported for large meshes.   Both take cell graph description in CSR format, which is constructed from $\mathcal{G}_E^h$ in parallel: each thread in a process is assigned a range of local cells to compute connectivity for, visits the cell's adjacent nodes through $\mathcal{G}_E$ and then adjacent cells of each visited node though $\mathcal{G}_E^T$, collects, sorts and counts all visited neighbor cells on the thread-private stack space and filters those that match connectivity threshold.   The kernel is executed twice: once to compute the exact number of graph edges (since METIS does not accept a graph description with gaps between rows, the allocated capacity of each row must be equal to its size), and once more to actually populate the list into the target \texttt{CRSMatrix} object which is allocated in between the kernels.   A different procedure is employed if matrix-based weights are to be computed using \cref{eq:graph_matrix_weights}, which involves a thread-parallel loop over matrix rows (it is assumed that the matrix sparsity already provides correct graph connectivity).
 \item Semi-structured (2.5D) partitioning is a combination of the above two methods: first, a graph restricted to cells from a single layer is built in parallel and partitioned using the unstructured coarsening procedure, then a parallel loop is used to combine surface and z-partition indices into the final coarse partition number.   Similar to the structured case, we store explicit ''column'' and ''layer'' indices in a 2D array of size $N_E^h \times 2$ at every level.
 \end{itemize}
@@ -304,7 +304,96 @@ Assuming $LU$ factorization with pivoting and fill-minimizing reordering is used
 \section{Numerical Results}
 \label{sec:par_results}
 
+In this section we present several numerical examples that investigate robustness and parallel scalability of the multiscale preconditioner implemented in GEOSX on multi-core and multi-node architectures.   We also look at relative costs of different kernels of the setup stage in an optimized implementation.   Some comparisons with a state-of-the art classical multigrid solver are provided to validate the observed performance of the method.
+
 \subsection{Test Cases Setup}
+
+\subsubsection{Computational Platform}
+
+\paragraph{Hardware specifications} All tests are run on Stanford Computation Earth and Environmental Sciences (CEES) Mazama HPC cluster, consisting of up to 150 compute nodes connected with a Mellanox Infiniband FDR (56 Gb/s) interconnect.   Each node features 64 GB of DDR4 RAM and dual-socket Intel\textsuperscript{\tiny\textregistered} Xeon\textsuperscript{\tiny\textregistered} E5-2670 v3 (Haswell microarchitecture) CPU with 30 MB of shared L3 cache and 12 cores per socket operating at \qty{2.3}{\GHz}, each with 256 KB L2 cache and 32 KB L1 data and instruction caches.   The cores support superscalar execution and AVX2 SIMD instruction set.
+
+\paragraph{Software configuration}
+The nodes are running a 64-bit CentOS 7.9 with Linux Kernel 3.10.   GEOSX is compiled with GNU C++ Compiler 8.3.0 with \texttt{-O3} optimization level and OpenMP support and linked with Open MPI 3.1.4, METIS 5.1.0, SuperLU\_DIST 6.2.0 and SuiteSparse 5.10.1.   We use \textit{hypre} 2.24.0 \cite{hypre} as the linear algebra backend and BoomerAMG \cite{Henson2002} as the reference classical multigrid preconditioner.    BoomerAMG is configured to employ a single V-cycle with one sweep of the same pre- and post-smoother used in our multiscale solver ($\ell_1$ symmetric Gauss-Seidel), combined with HMIS coarsening, ''extended+i'' interpolation and a direct solver at the coarsest level (set to have a maximum size of 9).   For mechanics problem, we additionally set the connection strength threshold to a recommended value of 0.8 (default is 0.25 for scalar equations) and instruct the solver to use systems variant with 3 functions (PDEs) per point.
+
+\subsubsection{Common Settings}
+
+Similar to the examples presented in \cref{sec:msrsb_examples}, we define three types of problems on each model (geomechanics, single-phase flow and coupled poromechanics) using finite element discretization for mechanics and TPFA finite volume for flow.   Solid skeleton is assumed to be isotropic linear elastic with incompressible grains, while a bulk rock compressibility coefficient of $c_r = \qty{1e-9}{\Pa^{-1}}$ is used in the flow problem.   Fluid is also assumed to have constant compressibility of $c_f = \qty{5e-10}{Pa^{-1}}$, viscosity $\mu = \qty{1e-3}{Pa.s}$ and density $\rho_f = \qty{1000}{kg/m^3}$, while gravity is neglected.   The resulting flow and poromechanical problems are time-dependent and mildly nonlinear, while geomechanical problem is linear and quasi steady-state (with time-dependent boundary conditions).
+
+In all cases, we run each problem for 10 time steps and average performance metrics (iterations and timings) over the steps.   In the context of time-dependent problems an expensive part of multiscale setup (coarsening and construction of the grid hierarchy, as well as initial convergence of the basis functions) is amortized across many time steps, while a small number of additional smoothing iterations are sufficient to evolve the grid transfer operators as system matrix changes in the course of the simulation.   In addition, in order to optimize the setup cost, we use a relaxed tolerance of $\varepsilon_{\text{sm}} = \num{1e-1}$ as convergence criteria for basis functions and limit the number of smoothing iterations to 20.   Since the problems considered here do not produce symmetric matrices (in case of mechanics, due to non-symmetric treatment of Dirichlet boundary conditions in GEOSX), we use right-preconditioned GMRES as the iterative solver with a convergence tolerance of $\varepsilon_r = \num{1e-8}$.
+
+\subsubsection{Test Case 1}
+
+The first test represents a \qtyproduct{1x1x0.1}{\km} domain that is discretized with a Cartesian grid using an equal number of cells in $x$, $y$ and $z$ directions, which creates an anisotropy factor of 10 between horizontal and vertical cell dimensions.   This geometric anisotropy is typical in subsurface modeling where grids are highly resolved in the vertical direction, and must be handled robustly by the solver.   Grid resolution levels and corresponding problem sizes are summarized in \cref{tab:cart_dims}.   The time step size for all three problems is chosen to be $\Delta t = \qty{1e5}{s}$.
+
+\paragraph{Flow}
+We employ sequential Gaussian simulation to generate a high-resolution geostatistical horizontal permeability field realization spanning over 4 orders of magnitude and map it onto each computational grid using nearest point interpolation. The result for a \numproduct{70x70x70} grid is shown shown in \cref{fig:cart_perm}.   Vertical permeability $k_z$ is obtained by multiplying $k_x$ by an material anisotropy factor set to a default value of \num{1e-2}.   The total numerical anisotropy for this problem is thus \num{1e-1}.    Reference porosity is constant and equal to 0.2 everywhere.   Domain boundaries are no-flow and two wells in opposing corners of the domain completed in layers 2 and 4 (out of 5 equally sized horizontal layers)  impose a varying in time pressure gradient, with producing well set to constant pressure of \qty{10}{\MPa} and injector operating at a constant mass rate of \qty{10}{kg/s}.
+
+\paragraph{Geomechanics}
+A heterogeneous Young's modulus distribution is prescribed using the log-permeability correlation \cref{eq:young_perm_correlation} with $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, shown in \cref{fig:cart_young}.   Boundary conditions consist of the usual constrained normal displacement on the bottom and side surfaces; in addition, normal traction of \qty{10}{\MPa} (with linear ramp-up as a function of time) is prescribed on the top surface, resulting in a displacement profile that is mostly vertical with small lateral deformation due to material heterogeneity, as shown in \cref{fig:cart_mech_sketch}.
+
+\paragraph{Poromechanics}
+The setup consists of a combination of flow and mechanics problems, ignoring the prescribed compression and using only the pressure gradient from wells to drive both flow and solid deformation.
+
+\paragraph{}
+Structured coarsening is used in the multiscale solver to generate a hierarchy of Cartesian coarse grids, with a default coarsening ratio of $C_r = \numproduct{5x5x5}$.   In addition, to overcome challenges associated with anisotropy, we employ semi-coarsening in the $z$ direction until each process has no more than a single coarse cell layer.   In distributed memory experiments, parallel partitioning of the domain is also structured, with processes arranged in a Cartesian grid of as even shape as possible.
+
+\begin{figure} [htbp]
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=0.9\linewidth]{figs/Cart/mech_sketch_v2}
+	    \caption{Mechanics problem and solution, $u_z$ [m]}
+        \label{fig:cart_mech_sketch}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=0.9\linewidth]{figs/Cart/flow_sketch}
+	    \caption{Flow problem and solution, $p$ [Pa]}
+        \label{fig:cart_flow_sketch}
+    \end{subfigure}
+    \par\bigskip
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=0.9\linewidth]{figs/Cart/young}
+	    \caption{Young's modulus, $E$ [Pa]}
+        \label{fig:cart_young}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=0.9\linewidth]{figs/Cart/perm}
+	    \caption{Permeability $k_x$ [\unit{m^2}]}
+        \label{fig:cart_perm}
+    \end{subfigure}
+    \caption[3D Cartesian test case]{3D Cartesian test case: mechanics (a) and flow (b) problem setup and solution at $t = \qty{1e6}{s}$, material properties (c,d).}
+    \label{fig:cart_setup}
+\end{figure}
+
+\begin{table}
+    \centering
+    \caption[3D Cartesian problem sizes]{3D Cartesian test case: grid resolution levels and corresponding problem sizes}
+    \label{tab:cart_dims}
+    \begin{tabular}{crrrr}
+      \hline\noalign{\smallskip}
+      \multirow{2}{*}{$\ell$} & & \multicolumn{3}{c}{degrees-of-freedom} \\
+      \noalign{\smallskip}\cline{3-5}\noalign{\smallskip}
+      & & flow & mechanics & coupled \\
+      \hline\noalign{\smallskip}
+           35x35x35 & &     42,875 &    139,968 &    182,843 \\
+           44x44x44 & &     85,184 &    273,375 &    358,559 \\
+           56x56x56 & &    175,616 &    555,579 &    731,195 \\
+           70x70x70 & &    343,000 &  1,073,733 &  1,416,733 \\
+           88x88x88 & &    681,472 &  2,114,907 &  2,796,379 \\
+        100x100x100 & &  1,000,000 &  3,090,903 &  4,090,903 \\
+        111x111x111 & &  1,367,631 &  4,214,784 &  5,582,415 \\
+        140x140x140 & &  2,744,000 &  8,409,663 & 11,153,663 \\
+        176x176x176 & &  5,451,776 & 16,635,699 & 22,087,475 \\
+        200x200x200 & &  8,000,000 & 24,361,803 & 32,361,803 \\
+        222x222x222 & & 10,941,048 & 33,268,701 & 44,209,749 \\
+        280x280x280 & & 21,952,000 & 66,564,123 & 88,516,123 \\
+      \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table}
+
+\subsubsection{Test Case 2}
+
+The second example is built using a sequence of three-dimensional unstructured meshes based on a layered reservoir model described in \cref{subsec:msrsb_examples_setup}.
 
 \subsection{Scaling and Parallel Efficiency Studies}
 

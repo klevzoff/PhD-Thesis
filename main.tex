@@ -12,11 +12,14 @@
 \usepackage{hyperref}
 \usepackage{cleveref}
 \usepackage{bm}
+\usepackage{array}
 \usepackage{subcaption}
+\usepackage{threeparttable}
 \usepackage{graphicx}
 \usepackage{graphbox}
 \usepackage{multirow}
 \usepackage{braket}
+\usepackage{siunitx}
 \usepackage{minted}
 \usepackage{mdframed}
 \surroundwithmdframed{minted}
@@ -25,14 +28,20 @@
 \usepackage[numbers,sort&compress]{natbib}
 \bibliographystyle{abbrvnat}
 
-\captionsetup{size=small}
-\captionsetup[sub]{size=small}
+%\captionsetup{size=small}
+%\captionsetup[sub]{size=small}
 
 % Number subsubsections to enable referencing them
 \setcounter{secnumdepth}{3}
 
 % Make reference ranges be written with an en-dash
 \newcommand{\crefrangeconjunction}{--}
+
+% Setup units display
+\sisetup{print-unity-mantissa=false, inter-unit-product=\ensuremath{{}\cdot{}}}
+\DeclareSIUnit{\darcy}{D}
+\DeclareSIUnit{\poise}{P}
+\DeclareSIUnit{\bar}{bar}
 
 % Set up link and citation colors
 \hypersetup{

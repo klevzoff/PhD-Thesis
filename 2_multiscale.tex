@@ -135,11 +135,11 @@ and performing the following computation:
     \end{align}
     \item Repeat steps 2-5 until reaching convergence as measured through change in $P$ on internal (non-rescaled) points:
     \begin{align}
-        \max\limits_{i \notin G, j}|P^{n+1}_{ij} - P^{n}_{ij}| < \varepsilon_{tol} \label{eq:msrsb_check}
+        \max\limits_{i \notin G, j}|P^{n+1}_{ij} - P^{n}_{ij}| < \varepsilon_{\text{sm}} \label{eq:msrsb_check}
     \end{align}
 \end{enumerate}
 
-The above procedure typically converges to high-quality interpolation operator quickly, and in practice high tolerance values $\varepsilon_{tol} \in [10^{-2}, 10^{-1}]$ may be used.   The resulting basis functions don't exhibit the effects of localization assumptions such as the ones in MsFE/MsFV and don't have non-monotone behavior in presence of high-contrast and anisotropic media.   Moreover, as the method doesn't rely on the construction of an explicit dual grid, it admits a much larger class of grids, including general unstructured ones.   It has been successfully applied as a preconditioner for single-phase flow problems \cite{Moyner2016} as well as in the context of sequential splitting schemes employed two-phase black-oil \cite{Moyner2016,Moyner2016a} and multiphase compositional \cite{Moyner2017} simulations, where it can also be used as an efficient approximate solver for the pressure system.   Moreover, the method has been demonstrated to enable flexible adaptation of the basis functions to complex grids, material properties and flow patterns \cite{Lie2017,Klemetsdal2020}.   Finally, MsRSB has been demonstrated to be a robust and scalable solver on state-of-the-art parallel architectures, including both CPU and GPU, by \cite{Manea2021,Manea2022}.   However, their investigation was limited to shared-memory machines and targeted Cartesian grids only, which exhibit highly regular memory access patterns and for which extremely specialized and optimized implementations are possible.
+The above procedure typically converges to high-quality interpolation operator quickly, and in practice high tolerance values $\varepsilon_{\text{sm}} \in [10^{-2}, 10^{-1}]$ may be used.   The resulting basis functions don't exhibit the effects of localization assumptions such as the ones in MsFE/MsFV and don't have non-monotone behavior in presence of high-contrast and anisotropic media.   Moreover, as the method doesn't rely on the construction of an explicit dual grid, it admits a much larger class of grids, including general unstructured ones.   It has been successfully applied as a preconditioner for single-phase flow problems \cite{Moyner2016} as well as in the context of sequential splitting schemes employed two-phase black-oil \cite{Moyner2016,Moyner2016a} and multiphase compositional \cite{Moyner2017} simulations, where it can also be used as an efficient approximate solver for the pressure system.   Moreover, the method has been demonstrated to enable flexible adaptation of the basis functions to complex grids, material properties and flow patterns \cite{Lie2017,Klemetsdal2020}.   Finally, MsRSB has been demonstrated to be a robust and scalable solver on state-of-the-art parallel architectures, including both CPU and GPU, by \cite{Manea2021,Manea2022}.   However, their investigation was limited to shared-memory machines and targeted Cartesian grids only, which exhibit highly regular memory access patterns and for which extremely specialized and optimized implementations are possible.
 
 Due to its flexibility and demonstrated robustness, MsRSB method is chosen as the basis for further developments in present work.   In the rest of this chapter, we discuss extensions of the method to multi-point discretizations and adaptation to finite-element and coupled problems that are relevant in the context of poromechanics.
 
@@ -1019,13 +1019,30 @@ with $A_{ww}^H = A_{ww}^h$ and the terms in $A_{pw}^H$ and $A_{wp}^H$ representi
 \section{Numerical Examples}
 \label{sec:msrsb_examples}
 
-In this section we evaluate the proposed multilevel multiscale method from a purely algorithmic viewpoint.   We investigate its robustness and algorithmic scalability as a preconditioner, i.e. its ability to ensure convergence of an iterative linear solver for a range of problem sizes and physical parameters.   Most of the numerical experiments described below are carried out using a prototype implementation, and thus absolute metrics such as CPU time are not reported.   Such measurements are provided in \cref{ch:parallel_multiscale} where we investigate parallel scalability using an optimized implementation.   The reader is also referred to \cite{Bosma2021} for several additional numerical examples not presented here, including an investigation of robustness of our MsRSB strategy for MPFA-based flow problems and linear elasticity under grid distortion, and a qualitative comparison with MSFE-based solver for geomechanics.
+In this section we evaluate the proposed multilevel multiscale method from a purely algorithmic viewpoint.   We investigate its robustness and algorithmic scalability as a preconditioner, i.e. its ability to ensure convergence of an iterative linear solver for a range of problem sizes and physical parameters.   Most of the numerical experiments described below are carried out using a prototype implementation, and thus absolute metrics such as CPU time are not reported.   Such measurements are provided in \cref{ch:parallel_multiscale} where we investigate parallel scalability using an optimized implementation.   The reader is also referred to \cite{Bosma2021} for several additional numerical examples not presented here, including an investigation of robustness of our MsRSB strategy for MPFA-based flow problems and linear elasticity under grid distortion.
 
 \subsection{Test Cases Setup}
+\label{subsec:msrsb_examples_setup}
+
+\subsubsection{Common Settings}
+
+The test cases presented below share some common properties described here.   In all tests, we solve both a geomechanical and a single-phase flow problem separately as well as a fully coupled poromechanical one.   The systems are discretized using linear finite elements for displacement and cell-centered finite volume for pressure utilizing TPFA for fluxes (we note that while the unstructured grids used do not formally satisfy the consistency requirements for TPFA, the scheme works in practice for the purposes of this investigation).   Boundary conditions are prescribed as explained below.
+
+\paragraph{Geomechanics}
+Dirichlet (essential) boundary conditions for mechanical deformation consist of constrained normal displacement ($\vec{u} \cdot \vec{n} = 0$) prescribed on $2n_{sd}-1$ sides (surfaces) excluding the top one.   Application of constraints to the linear system is carried out in a symmetry-preserving way (i.e. modifying both rows and columns of system matrix as well as the right-hand side).   The top side (surface) is traction-free ($\tensorTwo{\sigma} \cdot \vec{n} = \vec{0}$) and is allowed to deform freely.   In cases where just the mechanics problem is solved, an additional forcing term is prescribed via the right-hand side to drive the deformation, representing stresses generated by a pressure drop in a small reservoir zone inside the domain.
+
+\paragraph{Flow}
+All sides of the domain are considered no-flow ($\nabla p = 0$).   Flow is driven by a small number of producing and injecting vertical wells completed in one or several cells and operating at constant pressure.   We compute an approximate Peaceman-type well transmissibility (based on a crude approximation of a perforated cell by its bounding box) and prescribe the well fluxes by a right-hand side value and a diagonal contribution to the system matrix that makes it positive-definite.   No additional well equations thus need to be added to the system.
+
+\paragraph{Poromechanics}
+The coupled problem generally uses the same setup and boundary conditions as the two separate problems, except that the artificial forcing term used to initiate deformation in geomechanical problem is ignored, and the coupled system response is driven entirely by pressure gradient imposed by the well sources/sinks.
+
+\paragraph{}
+We assume rock mechanical response to be linear elastic, characterized in terms of Young's modulus $E$ and Poisson ration $\nu$.   In all cases gravity is neglected, and both fluid and rock are treated as incompressible, resulting in linear steady-state problems in which the system of algebraic equations is only solved once.   Moreover, both geomechanical and flow systems have symmetric positive-definite (SPD) matrices and are solved using preconditioned CG iteration (our preconditioning operator preserves symmetry with appropriate choice of smoothers) with a limit of 2000 iterations.   On the other hand, the coupled problem is not symmetric due to opposite sign of off-diagonal blocks and additional block scaling designed to improve system conditioning, and thus we use non-restarted right-preconditioned GMRES as the solver, for which the iteration limit is set to 500 to avoid high memory use.   All systems are solved to a relative residual reduction criteria of $\|r\|/\|r_0\| \leq \varepsilon_r = \num{1e-8}$.   In MsRSB setup we employ a convergence tolerance of $\varepsilon_{\text{sm}} = \num{1e-2}$ on the basis function update magnitude terminate the smoothing iteration.    Unstructured cell agglomeration is carried out by METIS \cite{Karypis1999} graph partitioning package using mostly default settings (we set the \texttt{ufactor} parameter to a higher value of 100 to relax the partition size balance constraint that leads to slightly more favorable aggregate shapes).
 
 \subsubsection{Test Case 1: 2D Cross-Section}
 
-The first set of tests is based on a two-dimensional elastic porous medium domain representing a cross-section of a geological formation in the $x-z$ plane, with distinct layers and faults (see \cref{fig:cross_section_sketch}).   The faults are considered inactive (no slip between surfaces), zero-volume and permeable; they are only present to guide mesh generation and assignment of material properties.   The domain is discretized with an unstructured Delaunay triangular mesh using Triangle mesh generator \cite{Shewchuk1996}.   We generate a sequence of eight mesh resolutions ranging between 12K and $\approx$1.5M elements --- see Table~\ref{tab:cross_section_dims} for detailed information on mesh resolution and corresponding problem sizes.   In this example, we investigate the properties of a multiscale solver with only two levels, since the coarse problem for all resolutions is amenable to a direct solution.   The coarse grids are chosen to maintain an approximately constant coarsening ratio for both nodal and cell-centered degrees-of-freedom.
+The first set of tests is based on a two-dimensional elastic porous medium domain representing a cross-section of a geological formation in the $x$-$z$ plane, with distinct layers and faults (see \cref{fig:cross_section_sketch}).   The faults are considered inactive (no slip between surfaces), zero-volume and permeable; they are only present to guide mesh generation and assignment of material properties.   The domain is discretized with an unstructured Delaunay triangular mesh using Triangle mesh generator \cite{Shewchuk1996}.   We generate a sequence of eight mesh resolutions ranging between approximately 12K and 1.5M elements --- see \cref{tab:cross_section_dims} for detailed information on mesh resolution and corresponding problem sizes.   The coarse grid sizes are chosen to maintain an approximately constant (though different) coarsening ratios for nodal and cell-centered degrees-of-freedom at every refinement level.   In this example, we first investigate a multiscale solver with two levels, since the coarse problem for all resolutions is amenable to a direct solution.   In addition, for higher mesh refinements a three-level scheme is considered, where the third level is generated with a smaller coarsening ratio of 32 for both nodes and cells.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -1099,40 +1116,40 @@ The first set of tests is based on a two-dimensional elastic porous medium domai
   \caption[2D cross-section test case setup]{\label{fig:cross_section} 2D cross-section test case setup: (a) physical domain, layers and faults; (b) Young's modulus distribution as a function of the elevation for each layer; (c) permeability map in [m\textsuperscript{2}] displayed on a log-scale, locations of injector (red) and producer (blue) well completions; (d) example of a fine and coarse meshes for smallest problem (refinement level 0).}
 \end{figure}
 
-\paragraph{Mechanics Problem}
-A vertical distribution of Young's modulus is prescribed, based on a correlation for uniaxial compressibility as function of depth developed in \cite{Bau2002} and recently used in \cite{Castelletto2017}:
+\paragraph{Flow}
+The domain is assigned a permeability field generated as follows: a mean permeability is chosen for each layer in the range of \qtyrange{1e-15}{1e-12}{m^2} (approximately \qty{1}{\milli\darcy} to \qty{1}{\darcy}), then a high-resolution background Gaussian random field is interpolated onto each mesh resolution and used to assign each layer a random permeability field with the chosen mean and a range of $\pm1$ order of magnitude.   The resulting distribution (shown in \cref{fig:cross_section_perm}) spans approximately 5 orders of magnitude and has both sharp contrasts between layers and small-scale variations within each layer.   The two pressure-controlled single-completion wells in the opposite corners of the domain operate at \qtylist{-10;+10}{\MPa}, respectively (relative to some unspecified in-situ pressure).   Reference and approximate multiscale solutions are shown in \cref{fig:cross_section_flow_sol} where we observe that the initial solution is qualitatively correct, although the initial solution error is quite large.   This is explained by the use of simple pointwise smoother (symmetric Gauss-Seidel in this case) that needs multiple sweeps to propagate localized right-hand side values of the boundary conditions in absence of specialized treatment (such as dedicated well basis functions).
+
+\paragraph{Geomechanics}
+We employ a plain-strain formulation of a linearly elastic medium.   A vertical distribution of Young's modulus is prescribed, based on a correlation for uniaxial compressibility as function of depth developed in \cite{Bau2002} and recently used in \cite{Castelletto2017}:
 \begin{align}
     \sigma'_z &= \sigma_z + p = -0.12218 \, |z|^{1.0766} + 0.1|z| \\
     c_M &= 0.01241 \,|\sigma'_z|^{-1.1342} \\
     E &= \frac{(1-2\nu)(1+\nu)}{(1-\nu)c_M}
     \label{eq:youngs_modulus_bau_etal}
 \end{align}
-where $\sigma'_z$ is the vertical effective stress and $c_M$ is medium vertical compressibility (both in units of bar), and Poisson ratio is set to $\nu = 0.3$ everywhere.   Additional discontinuity between layers is introduced by adding a different constant value to Young's modulus in each layer, specifically the mean Young's modulus in that layer multiplied by a layer--dependent coefficient.   The resulting distribution spans 3 orders of magnitude over the domain and is depicted in \cref{fig:cross_section_young}.   Left, right and bottom sides of the domain are prescribed to have constrained normal displacement ($\vec{u} \cdot \vec{n} = 0$), while the top side is traction-free ($\tensorTwo{\sigma} \cdot \vec{n} = \vec{0}$).   Dirichlet boundary conditions are prescribed in a symmetric fashion, enabling the use of CG iteration.   The deformation is driven by the forcing term generated by a constant pressure drawdown of $\Delta p = -20$ MPa prescribed via the right-hand side in a small reservoir zone shown in \cref{fig:cross_section_sketch}.   Reference solution for this problem is shown in \cref{fig:cross_section_mech_sol}, along with approximate solution generated by a single (non-iterated) application of the multiscale preconditioner.   As the plots indicate, multiscale solution qualitatively captures the solution shape, but the initial error can be quite large (reaching up to 33\% for $z$-displacement).   This is explained by the use of simple pointwise smoother (symmetric Gauss-Seidel in this case) that needs multiple sweeps to propagate localized right-hand side values of the forcing term.   As we'll see, this does not present a problem in the context of a Krylov solver.
+where $\sigma'_z$ is the vertical effective stress and $c_M$ is medium vertical compressibility (both in units of \unit{\bar}), and Poisson ratio is set to $\nu = 0.3$ everywhere.   Additional discontinuity between layers is introduced by adding a different constant value to Young's modulus in each layer, specifically the mean Young's modulus in that layer multiplied by a layer--dependent coefficient.   The resulting distribution spans 3 orders of magnitude over the domain and is depicted in \cref{fig:cross_section_young}.   Reference solution for this problem is shown in \cref{fig:cross_section_mech_sol}, along with approximate solution generated by a single (non-iterated) application of the multiscale preconditioner.   As the plots indicate, multiscale solution qualitatively captures the solution shape, but, similar to the flow problem, the initial error can be quite large (reaching up to 33\% for $z$-displacement).
 
-\paragraph{Flow Problem}
-The domain is assigned a permeability field generated as follows: a mean permeability is chosen for each layer in the range of $10^{-15}$--$10^{-12}$ m\textsuperscript{2} (1 mD to 1 D), then a high-resolution background Gaussian random field is interpolated onto each mesh and used to assign each layer a random permeability field with the chosen mean and a range of $\pm1$ order of magnitude.   The resulting distribution (shown in \cref{fig:cross_section_perm}) spans approximately 5 orders of magnitude and has both sharp large-scale contrasts across layers and small-scale variations within each layer.   We use TPFA scheme to discretize the system, and both fluid and rock are set to be incompressible, resulting in a steady-state problem with symmetric system matrix, which allows us to use CG solver.   The domain is prescribed no-flow boundary conditions on all sides, with two pressure-controlled wells in the opposite corners of the domain operating at -10 and 10 MPa, respectively (relative to some unspecified in-situ pressure).   Reference and approximate multiscale solutions are shown in \cref{fig:cross_section_flow_sol} where we observe that, similar to mechanics case, the initial solution error is quite large, though qualitatively correct.
-
-\paragraph{Poromechanical Problem}
-The coupled problem combines material properties and boundary conditions from the mechanics and flow problems, except that pressure drawdown is not applied and only wells are used to drive the flow and deformation.   A Biot coefficient of 1 and fluid viscosity of $10^{-3}$ Pa$\cdot$s (1 cP) are used, and the time step size is set to $\Delta t = 10^6$ s ($\approx$ 11.6 days), which corresponds to early transient behavior (the characteristic consolidation time for this problem is estimated to be $T_c \approx 10^8$ s.   Unlike the separate mechanics and flow problems, coupled system matrix is not symmetric due to sign and additional scaling of matrix blocks designed to improve system conditioning; therefore GMRES is used as the iterative solver.
+\paragraph{Poromechanics}
+In addition to the above material properties, a Biot coefficient of 1 and constant fluid viscosity of $\mu = \qty{e-3}{Pa.s}$ (\qty{1}{\centi\poise}) are used, and the time step size is set to $\Delta t = \qty{1e6}{s}$ ($\approx \qty{11.6}{\day}$), which corresponds to early transient behavior (the characteristic consolidation time for this problem is estimated to be $t_c \approx \qty{1e8}{s}$).
 
 \begin{table*}
     \centering
-    \caption[2D cross-section test case refinement problem sizes]{2D cross-section test case: refinement levels and corresponding fine- and coarse-scale problem sizes and coarsening ratios}
+    \caption[2D cross-section test case refinement problem sizes]{2D cross-section test case: refinement levels and corresponding fine and coarse grid sizes and coarsening ratios}
     \label{tab:cross_section_dims}
-    \begin{tabular}{rrrrrrrrrcc}
+    \begin{tabular}{rrrrrrrrrrrr}
         \hline\noalign{\smallskip}
-        \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{fine grid} & & \multicolumn{2}{c}{coarse grid} & & \multicolumn{2}{c}{coarsening ratio} \\
-        \noalign{\smallskip}\cline{3-4} \cline{6-7} \cline{9-10}\noalign{\smallskip}
-        & & \# cell & \# node & & \# cell & \# node & & flow & mech \\
+        \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{fine grid} & & \multicolumn{4}{c}{coarse level 2} & & \multicolumn{2}{c}{coarse level 3} \\
+        \noalign{\smallskip}\cline{3-4} \cline{6-9} \cline{11-12}\noalign{\smallskip}
+        & & $N_E$ & $N_N$ & & $N_E$ & $N_N$ & $C_r^{d,flow}$ & $C_r^{d,mech}$ & & $N_E$ & $N_N$ \\
         \hline\noalign{\smallskip}
-        0 & &    11,879 &   6,119 & &    32 &    65 & & 371.2 & 94.1 \\
-        1 & &    23,390 &  11,947 & &    64 &   128 & & 365.5 & 93.3 \\
-        2 & &    46,932 &  23,817 & &   128 &   256 & & 366.7 & 93.0 \\
-        3 & &    93,129 &  47,085 & &   256 &   512 & & 363.8 & 92.0 \\
-        4 & &   186,940 &  94,165 & &   512 & 1,021 & & 365.1 & 92.2 \\
-        5 & &   372,359 & 187,210 & & 1,024 & 2,038 & & 363.6 & 91.9 \\
-        6 & &   745,904 & 374,346 & & 2,048 & 4,078 & & 364.2 & 91.8 \\
-        7 & & 1,490,288 & 747,199 & & 4,096 & 8,162 & & 363.8 & 91.5 \\
+        0 & &    11,879 &   6,119 & &    32 &    65 & 371.2 & 94.1 & &     &     \\
+        1 & &    23,390 &  11,947 & &    64 &   128 & 365.5 & 93.3 & &     &     \\
+        2 & &    46,932 &  23,817 & &   128 &   256 & 366.7 & 93.0 & &   4 &   8 \\
+        3 & &    93,129 &  47,085 & &   256 &   512 & 363.8 & 92.0 & &   8 &  18 \\
+        4 & &   186,940 &  94,165 & &   512 & 1,021 & 365.1 & 92.2 & &  16 &  34 \\
+        5 & &   372,359 & 187,210 & & 1,024 & 2,038 & 363.6 & 91.9 & &  32 &  66 \\
+        6 & &   745,904 & 374,346 & & 2,048 & 4,078 & 364.2 & 91.8 & &  64 & 130 \\
+        7 & & 1,490,288 & 747,199 & & 4,096 & 8,162 & 363.8 & 91.5 & & 128 & 258 \\
         \hline\noalign{\smallskip}
     \end{tabular}
 \end{table*}
@@ -1148,7 +1165,8 @@ The coupled problem combines material properties and boundary conditions from th
         \includegraphics[width=\linewidth]{figs/CrossSection/mech_sol_z}
 	    \caption{Reference solution, $u_z$ [m]}
         \label{fig:cross_section_mech_sol_z}
-    \end{subfigure} \\
+    \end{subfigure}
+    \par\bigskip
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figs/CrossSection/mech_sol_approx_x}
 	    \caption{Approximate multiscale solution, $u_x$ [m]}
@@ -1159,7 +1177,8 @@ The coupled problem combines material properties and boundary conditions from th
         \includegraphics[width=\linewidth]{figs/CrossSection/mech_sol_approx_z}
 	    \caption{Approximate multiscale solution, $u_z$ [m]}
         \label{fig:cross_section_mech_sol_approx_z}
-    \end{subfigure} \\
+    \end{subfigure}
+    \par\bigskip
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figs/CrossSection/mech_sol_error_x}
 	    \caption{Error in multiscale solution, $u_x$ [m]}
@@ -1178,18 +1197,19 @@ The coupled problem combines material properties and boundary conditions from th
 \begin{figure} [htbp]
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figs/CrossSection/flow_sol}
-	    \caption{Reference solution, $\Delta P$ [Pa]}
+	    \caption{Reference solution, $\Delta p$ [Pa]}
         \label{fig:cross_section_flow_sol_full}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figs/CrossSection/flow_sol_approx}
-	    \caption{Approx. multiscale solution, $\Delta P$ [Pa]}
+	    \caption{Approx. multiscale solution, $\Delta p$ [Pa]}
         \label{fig:cross_section_flow_sol_approx}
-    \end{subfigure} \\
+    \end{subfigure}
+    \par\bigskip
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figs/CrossSection/flow_sol_error}
-	    \caption{Error in multiscale solution, $\Delta P$ [Pa]}
+	    \caption{Error in multiscale solution, $\Delta p$ [Pa]}
         \label{fig:cross_section_flow_sol_error}
     \end{subfigure}
     \caption[2D cross-section test case flow solutions]{2D cross-section test case flow problem: reference solution (a) together with the approximate, non-iterated multiscale solution (b) and the corresponding absolute error (c).}
@@ -1198,30 +1218,41 @@ The coupled problem combines material properties and boundary conditions from th
 
 \subsubsection{Test Case 2: 3D Synthetic Reservoir}
 
-The second test case represents a 3D porous media domain consisting of 4 distinct layers with two intersecting faults (which, once again, are considered inactive).   The domain is discretized with an unstructured tetrahedral mesh with various levels of refinement, summarized in \cref{tab:mazumodel2_dims} along with coarse grid sizes for the 2-level scheme.    Here we use two different sets of coarse grid for mechanics and flow problems, including in the coupled poromechanics test.   Note that effective coarsening ratio $C_r^d$ is much lower for the node-based degrees-of-freedom (mechanics), despite the coarse level grid having a lower resolution --- it is typical for unstructured agglomerates to have a large number of nodes per cell in three dimensions.
+The second test case represents a three-dimensional porous media formation consisting of 4 distinct layers with two intersecting faults (which, once again, are considered inactive).   The domain is discretized with an unstructured tetrahedral mesh with various levels of refinement, summarized in \cref{tab:mazumodel2_dims} along with coarse grid sizes for the 2-level scheme.   As 3D problems are more computationally challenging due to increased stencils and matrix bandwidth, we restrict this problem to only 4 levels of mesh refinement.    Here we use two different sets of coarse grid for mechanics and flow problems, including in the coupled poromechanics test.   Note that effective coarsening ratio $C_r^d$ is much lower for the node-based degrees-of-freedom (mechanics), despite the coarse level grid having a lower resolution --- it is typical for unstructured agglomerates to have a large number of nodes per cell in three dimensions.
 
-\paragraph{Flow problem}
+\paragraph{Flow}
 Similar to the previous case, we consider an incompressible flow problem.   The permeability field of top 15 layers of the SPE10 Comparative Solution Project's model 2 \cite{Christie2001} are is mapped to the tetrahedral mesh using nearest neighbor interpolation at every resolution level (shown in \cref{fig:mazumodel2_setup_permx,fig:mazumodel2_setup_permz}), preserving sharp contrasts and anisotropy present in source data (filtering is applied to pad zero values to a very low threshold value).   The boundary conditions are no-flow, and a 5-spot well pattern is modeled with 4 vertical injector wells a small distance away from $x$-$y$ plane corners and a producer well in the center of the domain (see \cref{fig:mazumodel2_setup_flow_sketch}).   All wells are completed throughout the middle (reservoir) layer, and an approximate Peaceman well transmissibility is computed for the intersected tetrahedral cells.
 
-\paragraph{Mechanics problem}
+\paragraph{Geomechanics}
 Based on the above permeability distribution, we assign a heterogeneous Young's modulus field using the following correlation to permeability:
 \begin{align}
-    E = E_{\max} + (\bar{E} - E_{\max})\frac{\log_{10}(k_x) - \min(\log_{10}(k_x))}{\Mean(\log_{10}(k_x)) - \min(\log_{10}(k_x))}
+    E = E_{\max} + 2(\bar{E} - E_{\max})\frac{\log_{10}(k_x) - \min(\log_{10}(k_x))}{\Mean(\log_{10}(k_x)) - \min(\log_{10}(k_x))}
+    \label{eq:young_perm_correlation}
 \end{align}
-where average $\bar{E} = 5$ GPa and $E_{\max} = 1.5 \bar{E} = 7.5$ GPa, resulting in a distribution shown in \cref{fig:mazumodel2_setup_young}.   Like in the 2D cross-section case, the boundary conditions include zero normal displacement on the sides and bottom and zero traction on the top surface, and a pressure drop of $\Delta p = -20$ MPa in a small zone of the reservoir layer (seen in \cref{fig:mazumodel2_setup_mech_sketch}).
+where average $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, resulting in a distribution shown in \cref{fig:mazumodel2_setup_young}, with a constant Poisson's ration of $\nu = 0.3$.   Like in the 2D cross-section case, the boundary conditions include zero normal displacement on the sides and bottom and zero traction on the top surface, and a forcing term prescribed via pressure drop of $\Delta p = \qty{-20}{\MPa}$ in a small zone of the reservoir layer (seen in \cref{fig:mazumodel2_setup_mech_sketch}) that causes subsidence in the overburden layer.
+
+\paragraph{Poromechanics}
+Material properties and time step size are chosen to be the same as in the 2D case, namely $b = 1$, $\mu = \qty{1e-3}{Pa.s}$.   The the time step size is set to $\Delta t = \qty{1e7}{s} \approx \qty{115}{\day}$, which still corresponds to early transient behavior (steady-state onset time for this problem is on the order of \qty{1e9}{s}).
 
 \begin{figure} [htbp]
-    \begin{subfigure}[b]{0.48\textwidth}
+    \begin{subfigure}[b]{0.3\textwidth}
         \centering
-        \includegraphics[width=0.9\linewidth]{figs/MazuModel2/mech_sketch}
+        \includegraphics[width=\linewidth]{figs/MazuModel2/mech_sketch}
         \caption{Mechanics problem setup}
         \label{fig:mazumodel2_setup_mech_sketch}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.48\textwidth}
+    \begin{subfigure}[b]{0.3\textwidth}
         \centering
-        \includegraphics[width=0.9\linewidth]{figs/MazuModel2/flow_sketch}
+        \includegraphics[width=\linewidth]{figs/MazuModel2/flow_sketch}
         \caption{Flow problem setup}
+        \label{fig:mazumodel2_setup_flow_sketch}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.3\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/MazuModel2/coarse_mesh}
+        \caption{Coarse mesh example}
         \label{fig:mazumodel2_setup_flow_sketch}
     \end{subfigure}
     \par\bigskip
@@ -1248,13 +1279,13 @@ where average $\bar{E} = 5$ GPa and $E_{\max} = 1.5 \bar{E} = 7.5$ GPa, resultin
 
 \begin{table}
     \centering
-    \caption[3D synthetic reservoir test case refinement problem sizes]{3D synthetic reservoir test case: refinement levels and corresponding fine- and coarse-scale problem sizes and coarsening ratios}
+    \caption[3D synthetic reservoir test case refinement problem sizes]{3D synthetic reservoir test case: refinement levels and corresponding fine- and coarse-scale grid sizes and coarsening ratios}
     \label{tab:mazumodel2_dims}
     \begin{tabular}{rrrrrrrrrrrrcc}
       \hline\noalign{\smallskip}
       \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{fine grid} & & \multicolumn{3}{c}{coarse grid (flow)} & & \multicolumn{3}{c}{coarse grid (mech)} \\
       \noalign{\smallskip}\cline{3-4} \cline{6-8} \cline{10-12}\noalign{\smallskip}
-      & & \# cell & \# node & & \# cell & \# node & $C_r^d$ & & \# cell & \# node & $C_r^d$ \\
+      & & $N_E$ & $N_N$ & & $N_E$ & $N_N$ & $C_r^d$ & & $N_E$ & $N_N$ & $C_r^d$ \\
       \hline\noalign{\smallskip}
         0 & &   9,140 &  1,956 & &  18 &    88 & 507.8 & &  12 &    51 & 38.4 \\
         1 & &  61,656 & 11,570 & & 120 &   710 & 513.8 & &  64 &   315 & 36.7 \\
@@ -1266,7 +1297,145 @@ where average $\bar{E} = 5$ GPa and $E_{\max} = 1.5 \bar{E} = 7.5$ GPa, resultin
 
 \subsection{Algorithmic Scalability}
 
+\subsubsection{Test Case 1}
 
+We evaluate algorithmic scalability of the two- and three-level multiscale preconditioners by solving each of the three types of problems (mechanics, flow and coupled) for each of the test cases at different mesh refinement levels and recording the number of Krylov iterations.   In this scenario the size of the coarse problem increases proportionally to mesh resolution.   For comparison purposes, we evaluate the use of multiscale operator with different choices of pre- and post-smoother.   Specifically, we consider symmetric Gauss-Seidel (SGS) as an example of a simple point-wise relaxation, and no-fill incomplete Cholesky (IC(0)) factorization as a more complex smoother with relatively expensive setup.   In poromechanics problem the smoother is constructed using the block-triangular pattern described in \cref{subsec:coupled_smoothing} with either SGS or IC(0) employed as sub-block smoothers.   In order to stress the role of the coarse grid correction step in achieving scalability, we also compare the convergence of multiscale method to a baseline preconditioner that consists only of the fine-scale pre- and post-smoother application.
+
+The results for the 2D cross-section models are summarized in \cref{tab:cross_section_conv_mech,tab:cross_section_conv_flow,tab:cross_section_conv_poro}.   The approximately constant iteration numbers indicate that two-level multiscale preconditioner exhibits mesh independence --- the number of iterations does not depend on mesh refinement level --- which implies excellent algorithmic scalability.   A slight exception from this trend is the coupled problem which exhibits a slight growth of iteration count, however it is still fairly limited.   The three-level scheme performs comparably, generally taking a slightly higher number of iterations to converge, which is to be expected since the coarse level problem is only resolved approximately.   Note that since CPU timings are not reported here, we do not attempt to conclude whether multilevel scheme is advantageous for this problem (it is not in fact, for this coarse problem size range).    However this is a good early indicator that a full multilevel scheme would be sufficiently robust for larger problems, where scalability of the coarse-level solve becomes an issue (numerical examples will be provided in \cref{ch:parallel_multiscale}).   As expected, convergence is achieved faster with a complex smoother than a simple relaxation, but qualitatively both smoother performances are similar.   On the other hand, the baseline preconditioner does not scale well, with number of iterations taken consistently increasing with refinement.   These results hold for all three types of problems and highlight a clear benefit of using a multilevel preconditioner.
+
+\begin{table*}
+    \centering
+    \caption{2D cross--section mechanics test case: PCG iteration counts.}
+    \label{tab:cross_section_conv_mech}
+    \begin{tabular}{rrrrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{3}{c}{IC(0)} & & \multicolumn{3}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-5} \cline{7-9}\noalign{\smallskip}
+        & & 2-level & 3-level & baseline & & 2-level & 3-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 24 & 24 &   97 & & 35 & 35 &  145 \\
+        1 & & 24 & 24 &  137 & & 35 & 35 &  204 \\
+        2 & & 26 & 26 &  194 & & 39 & 39 &  290 \\
+        3 & & 26 & 26 &  268 & & 37 & 37 &  407 \\
+        4 & & 27 & 27 &  385 & & 40 & 40 &  570 \\
+        5 & & 27 & 27 &  544 & & 40 & 40 &  816 \\
+        6 & & 27 & 27 &  769 & & 40 & 40 & 1153 \\
+        7 & & 27 & 27 & 1085 & & 40 & 40 & 1629 \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table*}
+
+\begin{table*}
+    \centering
+    \caption{2D cross--section single-phase flow test case: PCG iteration counts.   Dashes indicate convergence was not reached within 2000 iteration limit.}
+    \label{tab:cross_section_conv_flow}
+    \begin{tabular}{rrrrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{3}{c}{IC(0)} & & \multicolumn{3}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-5} \cline{7-9}\noalign{\smallskip}
+        & & 2-level & 3-level & baseline & & 2-level & 3-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 54 & 54 &  216 & & 74 & 75 &  296 \\
+        1 & & 54 & 54 &  302 & & 73 & 74 &  409 \\
+        2 & & 57 & 59 &  431 & & 76 & 81 &  584 \\
+        3 & & 55 & 55 &  610 & & 73 & 73 &  823 \\
+        4 & & 61 & 62 &  865 & & 81 & 82 & 1162 \\
+        5 & & 65 & 66 & 1213 & & 87 & 87 & 1631 \\
+        6 & & 58 & 58 & 1714 & & 77 & 78 &  --- \\
+        7 & & 58 & 58 &  --- & & 77 & 78 &  --- \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table*}
+
+\begin{table*}
+    \centering
+    \caption{2D cross--section poromechanics test case: GMRES iteration counts.   Dashes indicate convergence was not reached within 500 iteration limit.}
+    \label{tab:cross_section_conv_poro}
+    \begin{tabular}{rrrrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{3}{c}{IC(0)} & & \multicolumn{3}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-5} \cline{7-9}\noalign{\smallskip}
+        & & 2-level & 3-level & baseline & & 2-level & 3-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 54 & 61 & 168 & & 73 &  76 & 246 \\
+        1 & & 50 & 57 & 229 & & 71 &  75 & 341 \\
+        2 & & 61 & 74 & 324 & & 83 &  91 & 475 \\
+        3 & & 64 & 64 & 460 & & 86 &  88 & --- \\
+        4 & & 64 & 65 & --- & & 88 &  93 & --- \\
+        5 & & 70 & 70 & --- & & 96 & 100 & --- \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table*}
+
+\subsubsection{Test Case 2}
+
+The same series of tests is repeated for the unstructured 3D problem which is inherently more challenging due to both mesh complexity and sharp contrasts in material properties across a range of spatial scales.    This investigation is restricted to two-level scheme only.   The findings are presented in \cref{tab:mazumodel2_conv_mech,tab:mazumodel2_conv_flow,tab:mazumodel2_conv_poro}, where once again we observe that convergence of multiscale-preconditioned iteration is only mildly mesh-dependent, while the baseline approach exhibits a non-scalable growth in the iteration count.   This test confirms that algorithmic scalability of the multiscale method extends to unstructured three-dimensional problems.
+
+\begin{table*}
+    \centering
+    \caption{3D reservoir mechanics test case: CG iteration counts.}
+    \label{tab:mazumodel2_conv_mech}
+    \let\TPToverlap=\TPTrlap
+    \begin{threeparttable}[t]
+    \begin{tabular}{rrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{IC(0)} & & \multicolumn{2}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-4} \cline{6-7}\noalign{\smallskip}
+        & & 2-level & baseline & & 2-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 59 &  76 & & 33 &  60 \\
+        1 & & 52 & 103 & & 27 &  75 \\
+        2 & & 53 & 218 & & 25 & 112 \\
+        3 & & 77\tnote{\textsuperscript{\textdagger}} & 391\tnote{\textsuperscript{\textdagger}} & & 33 & 154 \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+    \begin{tablenotes}
+        \item [\textsuperscript{\textdagger}] A shifted IC(0) was computed instead to avoid negative pivot breakdown.
+    \end{tablenotes}
+    \end{threeparttable}
+\end{table*}
+
+\begin{table*}
+    \centering
+    \caption{3D reservoir single-phase flow test case: CG iteration counts.}
+    \label{tab:mazumodel2_conv_flow}
+    \begin{tabular}{rrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{IC(0)} & & \multicolumn{2}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-4} \cline{6-7}\noalign{\smallskip}
+        & & 2-level & baseline & & 2-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 40 &  80 & & 55 & 111 \\
+        1 & & 45 & 153 & & 59 & 202 \\
+        2 & & 49 & 265 & & 63 & 341 \\
+        3 & & 46 & 289 & & 64 & 395 \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table*}
+
+\begin{table*}
+    \centering
+    \caption{3D reservoir poromechanics test case: GMRES iteration counts.   Dashes indicate convergence was not reached within 500 iteration limit.}
+    \label{tab:mazumodel2_conv_poro}
+    \let\TPToverlap=\TPTrlap
+    \begin{threeparttable}[t]
+    \begin{tabular}{rrrrrrr}
+        \hline\noalign{\smallskip}
+        \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{IC(0)} & & \multicolumn{2}{c}{SGS} \\
+        \noalign{\smallskip}\cline{3-4} \cline{6-7}\noalign{\smallskip}
+        & & 2-level & baseline & & 2-level & baseline \\
+        \hline\noalign{\smallskip}
+        0 & & 100 & 110 & & 42 &  74 \\
+        1 & & 102 & 143 & & 46 & 114 \\
+        2 & &  67 & 169 & & 46 & 186 \\
+        3 & &  75\tnote{\textsuperscript{\textdagger}} & ---\tnote{\textsuperscript{\textdagger}} & & 52 & 225 \\
+        \hline\noalign{\smallskip}
+    \end{tabular}
+    \begin{tablenotes}
+        \item [\textsuperscript{\textdagger}] A shifted IC(0) was computed instead to avoid negative pivot breakdown.
+    \end{tablenotes}
+    \end{threeparttable}
+\end{table*}
 
 % \subsection{Heterogeneity and Anisotropy}
 
@@ -1275,3 +1444,5 @@ where average $\bar{E} = 5$ GPa and $E_{\max} = 1.5 \bar{E} = 7.5$ GPa, resultin
 % ===================== SECTION =====================
 \section{Summary}
 \label{sec:msrsb_summary}
+
+In this chapter, after a brief summary of relevant work on multilevel solution methods, we presented the algorithmic framework for constructing multilevel multiscale methods for problems with both cell-centered and node-based degrees-of-freedom using a combination of unstructured coarsening and restricted smoothing basis functions.   The necessary modifications to the system matrix that ensure the convergence of basis smoothing were also described.   Extending the framework to coupled problems, we introduced block-diagonal grid transfer and block-triangular smoothing operators.   This preconditioning template lends itself naturally to recursive extensions to three or more coupled (quasi-)elliptic problems (e.g. thermo-hydro-mechanical problems with diffusion-dominated heat transfer), which is an interesting future application of the coupled preconditioner.   We also propose different ways of combining coupled multiscale method with CPR preconditioner for multiphase problems, although implementation and validation of these approaches is beyond the scope of present work.   The chapter concludes with two- and three-dimensional numerical examples designed to demonstrate algorithmic scalability of the method for the types of problems considered.   A more thorough performance and scalability investigation will be presented in \cref{ch:parallel_multiscale}, while the upcoming \cref{ch:geosx_framework} describes the high-performance simulation framework that serves as the basis for the parallel optimized implementation.
