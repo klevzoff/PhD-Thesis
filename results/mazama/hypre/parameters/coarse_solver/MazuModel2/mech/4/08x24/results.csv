@@ -1,0 +1,3 @@
+num_iter_one,t_setup_one,t_solve_one,t_iter_one,t_total_one,num_iter_avg,t_setup_avg,t_solve_avg,t_iter_avg,t_total_avg
+54.0,38.805,12.640,0.234,51.445,52.5,6.510,9.956,0.190,16.466
+54.0,37.455,12.686,0.235,50.141,52.4,6.528,10.832,0.207,17.359
