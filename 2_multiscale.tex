@@ -200,22 +200,22 @@ with $\vec{e}_i$ the standard basis vectors in $\mathbb{R}^n$.   Special care mu
 
 \begin{figure} [htbp]
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_a}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/MPFA_9x9_a}}
   \caption{\label{fig:mpfa_demo_grid}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_b}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/MPFA_9x9_b}}
   \caption{\label{fig:mpfa_demo_support}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_c}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/MPFA_9x9_c}}
   \caption{\label{fig:mpfa_demo_orig}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/MPFA_9x9_d}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/MPFA_9x9_d}}
   \caption{\label{fig:mpfa_demo_alter}}
 \end{subfigure}
 \caption[MsRSB basis functions for MPFA flow problem]{\label{fig:mpfa_demo} Basis function for the center block of a regular 3$\times$3 partition: (a) primal grid and coarse nodes (\Colorcircle{red}); (b) support boundary (\Colorcircle{yellow}), edge (\Colorcircle{green}) and internal cells (\Colorcircle{blue}); (c) MsRSB basis function using the original fine-scale system; and (d) MsRSB basis function using the adjusted fine-scale system. The relative grid dimensions are not to scale.}
@@ -270,22 +270,22 @@ and thus still captures the interactions between components of displacement vect
 
 \begin{figure} [htbp]
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_a}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/FE_12x12_a}}
   \caption{\label{fig:fem_demo_grid}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_b}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/FE_12x12_b}}
   \caption{\label{fig:fem_demo_support}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_c}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/FE_12x12_c}}
   \caption{\label{fig:fem_demo_orig}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.22\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/FE_12x12_d}}
+  \centerline{\includegraphics[width=\linewidth]{figs/MsRSB/FE_12x12_d}}
   \caption{\label{fig:fem_demo_alter}}
 \end{subfigure}
 \caption[MsRSB basis functions for FEM linear elasticity]{\label{fig:fem_demo} Basis function for $x$-displacement of the middle coarse node of a regular 4$\times$4 partition: (a) primal grid; (b) coarse (\Colorcircle{red}), support boundary (\Colorcircle{yellow}), edge (\Colorcircle{green}) and internal (\Colorcircle{blue}) nodes; (c) MsRSB basis function using the original fine-scale system; and (d) enhanced MsRSB basis function using the adjusted fine-scale system. The relative grid dimensions are not to scale.}
@@ -297,7 +297,7 @@ To assess the effect of proposed matrix modifications on interpolation quality a
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\textwidth]{figs/2D_structured_young}
+    \includegraphics[width=\textwidth]{figs/MsRSB/2D_structured_young}
     \caption[Structured 2D heterogeneous geomechanics test case]{Structured 2D heterogeneous geomechanics test case: Young's modulus distribution and computational mesh setup.}
     \label{fig:2D_structured_young}
 \end{figure}
@@ -377,7 +377,7 @@ This definition follows a classical cell-based agglomeration approach, although 
     \centerline{\includegraphics[width=0.6\linewidth]{figs/square/square_tria_coarse}}
   \end{subfigure}
   \begin{subfigure}[t]{0.5\textwidth}
-    \centerline{\includegraphics[width=0.6\linewidth]{figs/cube_tetra_coarse}}
+    \centerline{\includegraphics[width=0.6\linewidth]{figs/MsRSB/cube_tetra_coarse}}
   \end{subfigure}
   \caption[Unstructured coarse grid examples]{\label{fig:square_coarse} Example of unstructured coarse grid in 2D (left) and 3D (right). Cell colors correspond to coarse cells (partitions) and coarse nodes are marked (\Colorcircle{red})}
 \end{figure}
@@ -436,7 +436,7 @@ The above criterion does not generalize well to three dimensions.   Indeed, it's
 \end{enumerate}
 
 \begin{figure}[htbp]
-  \centerline{\includegraphics[width=0.5\linewidth]{figs/coarsening_2d_zoom_labels.png}}
+  \centerline{\includegraphics[width=0.5\linewidth]{figs/MsRSB/coarsening_2d_zoom_labels}}
   \caption[Coarse node selection algorithm example in 2D]{\label{fig:coarse_nodes_algo_zoom} Example of coarse node selection algorithm in 2D. Coarse subdomain indices shown in gray labels; coarse edge feature keys in white; coarse node feature keys in pink. Detected coarse nodes are marked (\Colorcircle{red}), edge nodes (\Colorcircle{yellow}); interior nodes (\Colorcircle{blue}). Groups of nodes representing connectors are outlined by black rounded borders.}
 \end{figure}
 
@@ -1218,10 +1218,10 @@ In addition to the above material properties, a Biot coefficient of 1 and consta
 
 \subsubsection{Test Case 2: 3D Synthetic Reservoir}
 
-The second test case represents a three-dimensional porous media formation consisting of 4 distinct layers with two intersecting faults (which, once again, are considered inactive).   The domain is discretized with an unstructured tetrahedral mesh with various levels of refinement, summarized in \cref{tab:mazumodel2_dims} along with coarse grid sizes for the 2-level scheme.   As 3D problems are more computationally challenging due to increased stencils and matrix bandwidth, we restrict this problem to only 4 levels of mesh refinement.    Here we use two different sets of coarse grid for mechanics and flow problems, including in the coupled poromechanics test.   Note that effective coarsening ratio $C_r^d$ is much lower for the node-based degrees-of-freedom (mechanics), despite the coarse level grid having a lower resolution --- it is typical for unstructured agglomerates to have a large number of nodes per cell in three dimensions.
+The second test case represents a three-dimensional porous media formation consisting of 4 distinct layers with two intersecting faults (which, once again, are considered inactive).   The domain is discretized with an unstructured tetrahedral mesh with various levels of refinement, summarized in \cref{tab:mazumodel2_matlab_dims} along with coarse grid sizes for the 2-level scheme.   As 3D problems are more computationally challenging due to increased stencils and matrix bandwidth, we restrict this problem to only 4 levels of mesh refinement.    Here we use two different sets of coarse grid for mechanics and flow problems, including in the coupled poromechanics test.   Note that effective coarsening ratio $C_r^d$ is much lower for the node-based degrees-of-freedom (mechanics), despite the coarse level grid having a lower resolution --- it is typical for unstructured agglomerates to have a large number of nodes per cell in three dimensions.
 
 \paragraph{Flow}
-Similar to the previous case, we consider an incompressible flow problem.   The permeability field of top 15 layers of the SPE10 Comparative Solution Project's model 2 \cite{Christie2001} are is mapped to the tetrahedral mesh using nearest neighbor interpolation at every resolution level (shown in \cref{fig:mazumodel2_setup_permx,fig:mazumodel2_setup_permz}), preserving sharp contrasts and anisotropy present in source data (filtering is applied to pad zero values to a very low threshold value).   The boundary conditions are no-flow, and a 5-spot well pattern is modeled with 4 vertical injector wells a small distance away from $x$-$y$ plane corners and a producer well in the center of the domain (see \cref{fig:mazumodel2_setup_flow_sketch}).   All wells are completed throughout the middle (reservoir) layer, and an approximate Peaceman well transmissibility is computed for the intersected tetrahedral cells.
+Similar to the previous case, we consider an incompressible flow problem.   A permeability field based on the top 10 layers of the SPE10 Comparative Solution Project's model 2 \cite{Christie2001} is mapped to the tetrahedral mesh using nearest neighbor interpolation at every resolution level (shown in \cref{fig:mazumodel2_matlab_setup_permx,fig:mazumodel2_matlab_setup_permz}), preserving sharp contrasts and anisotropy present in source data (filtering is applied to pad zero values to a very low threshold value).   The boundary conditions are no-flow, and a 5-spot well pattern is modeled with 4 vertical injector wells a small distance away from $x$-$y$ plane corners and a producer well in the center of the domain (see \cref{fig:mazumodel2_matlab_setup_flow_sketch}).   All wells are completed throughout the middle (reservoir) layer, and an approximate Peaceman well transmissibility is computed for the intersected tetrahedral cells.
 
 \paragraph{Geomechanics}
 Based on the above permeability distribution, we assign a heterogeneous Young's modulus field using the following correlation to permeability:
@@ -1229,58 +1229,79 @@ Based on the above permeability distribution, we assign a heterogeneous Young's 
     E = E_{\max} + 2(\bar{E} - E_{\max})\frac{\log_{10}(k_x) - \min(\log_{10}(k_x))}{\Mean(\log_{10}(k_x)) - \min(\log_{10}(k_x))}
     \label{eq:young_perm_correlation}
 \end{align}
-where average $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, resulting in a distribution shown in \cref{fig:mazumodel2_setup_young}, with a constant Poisson's ration of $\nu = 0.3$.   Like in the 2D cross-section case, the boundary conditions include zero normal displacement on the sides and bottom and zero traction on the top surface, and a forcing term prescribed via pressure drop of $\Delta p = \qty{-20}{\MPa}$ in a small zone of the reservoir layer (seen in \cref{fig:mazumodel2_setup_mech_sketch}) that causes subsidence in the overburden layer.
+where average $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, resulting in a distribution shown in \cref{fig:mazumodel2_matlab_setup_young}, with a constant Poisson's ration of $\nu = 0.3$.   Like in the 2D cross-section case, the boundary conditions include zero normal displacement on the sides and bottom and zero traction on the top surface, and a forcing term prescribed via pressure drop of $\Delta p = \qty{-20}{\MPa}$ in a small zone of the reservoir layer (seen in \cref{fig:mazumodel2_matlab_setup_mech_sketch}) that causes subsidence in the overburden layer.
 
 \paragraph{Poromechanics}
 Material properties and time step size are chosen to be the same as in the 2D case, namely $b = 1$, $\mu = \qty{1e-3}{Pa.s}$.   The the time step size is set to $\Delta t = \qty{1e7}{s} \approx \qty{115}{\day}$, which still corresponds to early transient behavior (steady-state onset time for this problem is on the order of \qty{1e9}{s}).
 
 \begin{figure} [htbp]
-    \begin{subfigure}[b]{0.3\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/MazuModel2/mech_sketch}
-        \caption{Mechanics problem setup}
-        \label{fig:mazumodel2_setup_mech_sketch}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Mechanics problem setup
+        \label{fig:mazumodel2_matlab_setup_mech_sketch}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/mech_sketch}
+    }
     \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/MazuModel2/flow_sketch}
-        \caption{Flow problem setup}
-        \label{fig:mazumodel2_setup_flow_sketch}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Flow problem setup
+        \label{fig:mazumodel2_matlab_setup_flow_sketch}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/flow_sketch}
+    }
     \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/MazuModel2/coarse_mesh}
-        \caption{Coarse mesh example}
-        \label{fig:mazumodel2_setup_flow_sketch}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Fine and coarse mesh example
+        \label{fig:mazumodel2_matlab_setup_coarse_mesh}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/coarse_mesh}
+    }
     \par\bigskip
-    \begin{subfigure}[t]{0.3\textwidth}
-        \includegraphics[width=\linewidth]{figs/MazuModel2/permx}
-        \caption{Log-scale horizontal permeability, [m\textsuperscript{2}]}
-        \label{fig:mazumodel2_setup_permx}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Log-scale horizontal permeability, $k_x$ [\unit{m^2}]
+        \label{fig:mazumodel2_matlab_setup_permx}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/permx}
+    }
     \hfill
-    \begin{subfigure}[t]{0.3\textwidth}
-        \includegraphics[width=\linewidth]{figs/MazuModel2/permz}
-        \caption{Log-scale vertical permeability, [m\textsuperscript{2}]}
-        \label{fig:mazumodel2_setup_permz}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Log-scale vertical permeability, $k_z$ [\unit{m^2}]
+        \label{fig:mazumodel2_matlab_setup_permz}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/permz}
+    }
     \hfill
-    \begin{subfigure}[t]{0.3\textwidth}
-        \includegraphics[width=\linewidth]{figs/MazuModel2/young}
-        \caption{Young's modulus, [Pa]}
-        \label{fig:mazumodel2_setup_young}
-    \end{subfigure}
+    \subcaptionbox
+    {
+        Young's modulus, $E$ [\unit{Pa}]
+        \label{fig:mazumodel2_matlab_setup_young}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/matlab/young}
+    }
     \caption[3D synthetic reservoir test case setup]{3D synthetic reservoir test case setup.}
-    \label{fig:mazumodel2_setup}
+    \label{fig:mazumodel2_matlab_setup}
 \end{figure}
 
 \begin{table}
     \centering
     \caption[3D synthetic reservoir test case refinement problem sizes]{3D synthetic reservoir test case: refinement levels and corresponding fine- and coarse-scale grid sizes and coarsening ratios}
-    \label{tab:mazumodel2_dims}
+    \label{tab:mazumodel2_matlab_dims}
     \begin{tabular}{rrrrrrrrrrrrcc}
       \hline\noalign{\smallskip}
       \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{fine grid} & & \multicolumn{3}{c}{coarse grid (flow)} & & \multicolumn{3}{c}{coarse grid (mech)} \\
@@ -1369,12 +1390,12 @@ The results for the 2D cross-section models are summarized in \cref{tab:cross_se
 
 \subsubsection{Test Case 2}
 
-The same series of tests is repeated for the unstructured 3D problem which is inherently more challenging due to both mesh complexity and sharp contrasts in material properties across a range of spatial scales.    This investigation is restricted to two-level scheme only.   The findings are presented in \cref{tab:mazumodel2_conv_mech,tab:mazumodel2_conv_flow,tab:mazumodel2_conv_poro}, where once again we observe that convergence of multiscale-preconditioned iteration is only mildly mesh-dependent, while the baseline approach exhibits a non-scalable growth in the iteration count.   This test confirms that algorithmic scalability of the multiscale method extends to unstructured three-dimensional problems.
+The same series of tests is repeated for the unstructured 3D problem which is inherently more challenging due to both mesh complexity and sharp contrasts in material properties across a range of spatial scales.    This investigation is restricted to two-level scheme only.   The findings are summarized in \cref{tab:mazumodel2_matlab_conv_mech,tab:mazumodel2_matlab_conv_flow,tab:mazumodel2_matlab_conv_poro}, and a visual comparison of CG convergence histories is presented in \cref{fig:mazumodel2_matlab_conv}.   Once again we observe that convergence of multiscale-preconditioned iteration is only mildly mesh-dependent, while the baseline approach exhibits a non-scalable growth in the iteration count.   This test confirms that algorithmic scalability of the multiscale method extends to unstructured three-dimensional problems.
 
 \begin{table*}
     \centering
     \caption{3D reservoir mechanics test case: CG iteration counts.}
-    \label{tab:mazumodel2_conv_mech}
+    \label{tab:mazumodel2_matlab_conv_mech}
     \let\TPToverlap=\TPTrlap
     \begin{threeparttable}[t]
     \begin{tabular}{rrrrrrr}
@@ -1395,10 +1416,122 @@ The same series of tests is repeated for the unstructured 3D problem which is in
     \end{threeparttable}
 \end{table*}
 
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
+    \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
+    \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
+    \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
+    \begin{semilogyaxis}
+      [ width  = \linewidth,
+        height = \linewidth,
+        grid = both,
+        no markers,
+        major grid style={very thin,draw=gray!50},
+        xmin=0, xmax=200,
+        %xlabel={Iteration number},
+        %ylabel={$\|r^k\|_2/\|r^0\|_2$},
+        ytick={1e-8,1e-6,1e-4,1e-2,1e-0},
+        legend pos=north east,
+        legend cell align={left},
+        legend style={font=\footnotesize}]
+      \addplot+[color_l0, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r0_ms_sgs_x1.csv};
+      \addplot+[color_l0, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r0_sm_sgs_x1.csv};
+      \addlegendentry{$l=0$}
+      \addplot+[color_l1, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r1_ms_sgs_x1.csv};
+      \addplot+[color_l1, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r1_sm_sgs_x1.csv};
+      \addlegendentry{$l=1$}
+      \addplot+[color_l2, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r2_ms_sgs_x1.csv};
+      \addplot+[color_l2, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r2_sm_sgs_x1.csv};
+      \addlegendentry{$l=2$}
+      \addplot+[color_l3, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r3_ms_sgs_x1.csv};
+      \addplot+[color_l3, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/mech_r3_sm_sgs_x1.csv};
+      \addlegendentry{$l=3$}
+    \end{semilogyaxis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:mazumodel2_matlab_conv_mech}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
+    \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
+    \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
+    \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
+    \begin{semilogyaxis}
+      [ width  = \linewidth,
+        height = \linewidth,
+        grid = both,
+        no markers,
+        major grid style={very thin,draw=gray!50},
+        xmin=0, xmax=400,
+        %xlabel={Iteration number},
+        %ylabel={$\|r^k\|_2/\|r^0\|_2$},
+        ytick={1e-8,1e-6,1e-4,1e-2,1e-0},
+        legend pos=north east,
+        legend cell align={left},
+        legend style={font=\footnotesize}]
+      \addplot+[color_l0, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r0_ms_sgs_x1.csv};
+      \addplot+[color_l0, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r0_sm_sgs_x1.csv};
+      \addlegendentry{$l=0$}
+      \addplot+[color_l1, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r1_ms_sgs_x1.csv};
+      \addplot+[color_l1, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r1_sm_sgs_x1.csv};
+      \addlegendentry{$l=1$}
+      \addplot+[color_l2, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r2_ms_sgs_x1.csv};
+      \addplot+[color_l2, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r2_sm_sgs_x1.csv};
+      \addlegendentry{$l=2$}
+      \addplot+[color_l3, solid, very thick,]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r3_ms_sgs_x1.csv};
+      \addplot+[color_l3, densely dashed, very thick, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {./figs/MazuModel2/matlab/data/conv/flow_r3_sm_sgs_x1.csv};
+      \addlegendentry{$l=3$}
+    \end{semilogyaxis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:mazumodel2_matlab_conv_flow}
+  \end{subfigure}
+  \caption[3D reservoir example convergence histories]{3D reservoir example CG relative residual histories with SGS smoother: (a) mechanics, (b) flow.   Solid lines correspond to 2-level multiscale, dashed --- to baseline preconditioner.}
+  \label{fig:mazumodel2_matlab_conv}
+\end{figure}
+
 \begin{table*}
     \centering
     \caption{3D reservoir single-phase flow test case: CG iteration counts.}
-    \label{tab:mazumodel2_conv_flow}
+    \label{tab:mazumodel2_matlab_conv_flow}
     \begin{tabular}{rrrrrrr}
         \hline\noalign{\smallskip}
         \multirow{2}{*}{$\ell$} & & \multicolumn{2}{c}{IC(0)} & & \multicolumn{2}{c}{SGS} \\
@@ -1416,7 +1549,7 @@ The same series of tests is repeated for the unstructured 3D problem which is in
 \begin{table*}
     \centering
     \caption{3D reservoir poromechanics test case: GMRES iteration counts.   Dashes indicate convergence was not reached within 500 iteration limit.}
-    \label{tab:mazumodel2_conv_poro}
+    \label{tab:mazumodel2_matlab_conv_poro}
     \let\TPToverlap=\TPTrlap
     \begin{threeparttable}[t]
     \begin{tabular}{rrrrrrr}

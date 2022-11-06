@@ -46,12 +46,12 @@ An important feature of mesh levels is that agglomerates of fine-level cells tha
 
 \begin{figure} [htbp]
 \begin{subfigure}[t]{0.45\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/Cube_parallel_part}}
+  \centerline{\includegraphics[width=\linewidth]{figs/GEOSX/Cube_parallel_part}}
   \caption{\label{fig:par_decomp_struct}}
 \end{subfigure}
 \hfill
 \begin{subfigure}[t]{0.45\textwidth}
-  \centerline{\includegraphics[width=\linewidth]{figs/MazuModel2_parallel_part}}
+  \centerline{\includegraphics[width=\linewidth]{figs/GEOSX/MazuModel2_parallel_part}}
   \caption{\label{fig:par_decomp_unstruct}}
 \end{subfigure}
 \caption[Parallel decomposition of multiscale mesh levels]{\label{fig:par_decomp} Parallel decomposition of mesh levels for structured Cartesian (left) and fully unstructured tetrahedral (right) meshes.   Solid colors indicate locally owned cells, while ghosted cells are semi-transparent.   Coarse nodes are shown as \Colorcircle{red}.}
@@ -313,7 +313,10 @@ In this section we present several numerical examples that investigate robustnes
 \paragraph{Hardware specifications} All tests are run on Stanford Computation Earth and Environmental Sciences (CEES) Mazama HPC cluster, consisting of up to 150 compute nodes connected with a Mellanox Infiniband FDR (56 Gb/s) interconnect.   Each node features 64 GB of DDR4 RAM and dual-socket Intel\textsuperscript{\tiny\textregistered} Xeon\textsuperscript{\tiny\textregistered} E5-2670 v3 (Haswell microarchitecture) CPU with 30 MB of shared L3 cache and 12 cores per socket operating at \qty{2.3}{\GHz}, each with 256 KB L2 cache and 32 KB L1 data and instruction caches.   The cores support superscalar execution and AVX2 SIMD instruction set.
 
 \paragraph{Software configuration}
-The nodes are running a 64-bit CentOS 7.9 with Linux Kernel 3.10.   GEOSX is compiled with GNU C++ Compiler 8.3.0 with \texttt{-O3} optimization level and OpenMP support and linked with Open MPI 3.1.4, METIS 5.1.0, SuperLU\_DIST 6.2.0 and SuiteSparse 5.10.1.   We use \textit{hypre} 2.24.0 \cite{hypre} as the linear algebra backend and BoomerAMG \cite{Henson2002} as the reference classical multigrid preconditioner.    BoomerAMG is configured to employ a single V-cycle with one sweep of the same pre- and post-smoother used in our multiscale solver ($\ell_1$ symmetric Gauss-Seidel), combined with HMIS coarsening, ''extended+i'' interpolation and a direct solver at the coarsest level (set to have a maximum size of 9).   For mechanics problem, we additionally set the connection strength threshold to a recommended value of 0.8 (default is 0.25 for scalar equations) and instruct the solver to use systems variant with 3 functions (PDEs) per point.
+The nodes are running a 64-bit CentOS 7.9 with Linux Kernel 3.10.   GEOSX is compiled with GNU C++ Compiler 8.3.0 with \texttt{-O3} optimization level and OpenMP support and linked with Open MPI 3.1.4, METIS 5.1.0, SuperLU\_DIST 6.2.0 and SuiteSparse 5.10.1.   We use \textit{hypre} 2.24.0 \cite{hypre} as the linear algebra backend and BoomerAMG \cite{Henson2002} as the reference classical multigrid preconditioner.    
+
+\paragraph{AMG setup}
+BoomerAMG is configured to employ a single V-cycle with one sweep of the same pre- and post-smoother used in our multiscale solver ($\ell_1$ hybrid symmetric Gauss-Seidel).   Other settings include HMIS coarsening, ''extended+i'' interpolation and a direct solver at the coarsest level (set to have a maximum size of 9).   For mechanics problem, we additionally set the connection strength threshold to a recommended value of 0.8 (default is 0.25 for scalar equations) and instruct the solver to use systems variant with 3 functions (PDEs) per point.
 
 \subsubsection{Common Settings}
 
@@ -329,12 +332,12 @@ The first test represents a \qtyproduct{1x1x0.1}{\km} domain that is discretized
 We employ sequential Gaussian simulation to generate a high-resolution geostatistical horizontal permeability field realization spanning over 4 orders of magnitude and map it onto each computational grid using nearest point interpolation. The result for a \numproduct{70x70x70} grid is shown shown in \cref{fig:cart_perm}.   Vertical permeability $k_z$ is obtained by multiplying $k_x$ by an material anisotropy factor set to a default value of \num{1e-2}.   The total numerical anisotropy for this problem is thus \num{1e-1}.    Reference porosity is constant and equal to 0.2 everywhere.   Domain boundaries are no-flow and two wells in opposing corners of the domain completed in layers 2 and 4 (out of 5 equally sized horizontal layers)  impose a varying in time pressure gradient, with producing well set to constant pressure of \qty{10}{\MPa} and injector operating at a constant mass rate of \qty{10}{kg/s}.
 
 \paragraph{Geomechanics}
-A heterogeneous Young's modulus distribution is prescribed using the log-permeability correlation \cref{eq:young_perm_correlation} with $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, shown in \cref{fig:cart_young}.   Boundary conditions consist of the usual constrained normal displacement on the bottom and side surfaces; in addition, normal traction of \qty{10}{\MPa} (with linear ramp-up as a function of time) is prescribed on the top surface, resulting in a displacement profile that is mostly vertical with small lateral deformation due to material heterogeneity, as shown in \cref{fig:cart_mech_sketch}.
+A heterogeneous Young's modulus distribution is prescribed using the log-permeability correlation \cref{eq:young_perm_correlation} with $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, shown in \cref{fig:cart_young}.   Boundary conditions consist of the usual constrained normal displacement on the bottom and side surfaces; in addition, normal traction of $t_z = -\qty{10}{\MPa}$ (with linear ramp-up as a function of time) is prescribed on the top surface, resulting in a displacement profile that is mostly vertical with small lateral deformation due to material heterogeneity, as shown in \cref{fig:cart_mech_sketch}.
 
 \paragraph{Poromechanics}
-The setup consists of a combination of flow and mechanics problems, ignoring the prescribed compression and using only the pressure gradient from wells to drive both flow and solid deformation.
+The setup consists of a combination of flow and mechanics problems, ignoring the prescribed traction and using only the pressure gradient from wells to drive both flow and solid deformation.
 
-\paragraph{}
+\paragraph{Multiscale settings}
 Structured coarsening is used in the multiscale solver to generate a hierarchy of Cartesian coarse grids, with a default coarsening ratio of $C_r = \numproduct{5x5x5}$.   In addition, to overcome challenges associated with anisotropy, we employ semi-coarsening in the $z$ direction until each process has no more than a single coarse cell layer.   In distributed memory experiments, parallel partitioning of the domain is also structured, with processes arranged in a Cartesian grid of as even shape as possible.
 
 \begin{figure} [htbp]
@@ -375,31 +378,125 @@ Structured coarsening is used in the multiscale solver to generate a hierarchy o
       \noalign{\smallskip}\cline{3-5}\noalign{\smallskip}
       & & flow & mechanics & coupled \\
       \hline\noalign{\smallskip}
-           35x35x35 & &     42,875 &    139,968 &    182,843 \\
-           44x44x44 & &     85,184 &    273,375 &    358,559 \\
-           56x56x56 & &    175,616 &    555,579 &    731,195 \\
-           70x70x70 & &    343,000 &  1,073,733 &  1,416,733 \\
-           88x88x88 & &    681,472 &  2,114,907 &  2,796,379 \\
-        100x100x100 & &  1,000,000 &  3,090,903 &  4,090,903 \\
-        111x111x111 & &  1,367,631 &  4,214,784 &  5,582,415 \\
-        140x140x140 & &  2,744,000 &  8,409,663 & 11,153,663 \\
-        176x176x176 & &  5,451,776 & 16,635,699 & 22,087,475 \\
-        200x200x200 & &  8,000,000 & 24,361,803 & 32,361,803 \\
-        222x222x222 & & 10,941,048 & 33,268,701 & 44,209,749 \\
-        280x280x280 & & 21,952,000 & 66,564,123 & 88,516,123 \\
+           \numproduct{35x35x35} & &     42,875 &    139,968 &    182,843 \\
+           \numproduct{44x44x44} & &     85,184 &    273,375 &    358,559 \\
+           \numproduct{56x56x56} & &    175,616 &    555,579 &    731,195 \\
+           \numproduct{70x70x70} & &    343,000 &  1,073,733 &  1,416,733 \\
+           \numproduct{88x88x88} & &    681,472 &  2,114,907 &  2,796,379 \\
+        \numproduct{100x100x100} & &  1,000,000 &  3,090,903 &  4,090,903 \\
+        \numproduct{111x111x111} & &  1,367,631 &  4,214,784 &  5,582,415 \\
+        \numproduct{140x140x140} & &  2,744,000 &  8,409,663 & 11,153,663 \\
+        \numproduct{176x176x176} & &  5,451,776 & 16,635,699 & 22,087,475 \\
+        \numproduct{200x200x200} & &  8,000,000 & 24,361,803 & 32,361,803 \\
+        \numproduct{222x222x222} & & 10,941,048 & 33,268,701 & 44,209,749 \\
+        \numproduct{280x280x280} & & 21,952,000 & 66,564,123 & 88,516,123 \\
       \hline\noalign{\smallskip}
     \end{tabular}
 \end{table}
 
 \subsubsection{Test Case 2}
 
-The second example is built using a sequence of three-dimensional unstructured meshes based on a layered reservoir model described in \cref{subsec:msrsb_examples_setup}.
+The second example is built using a sequence of three-dimensional unstructured meshes based on a layered reservoir model of test case 2 described in \cref{subsec:msrsb_examples_setup}.   For this test case, additional mesh resolutions are generated by subdividing each tetrahedral cell of refinement level 2 into 8 new cells --- problem dimensions for all refinement levels are summarized in \cref{tab:mazumodel2_par_dims}.   The time step size for all three problems is set to $\Delta t = \qty{1e6}{s}$.   Below we summarize the setup for the three problems, which is differs in several ways from the one used in \cref{ch:multiscale_poromechanics}. 
 
-\subsection{Scaling and Parallel Efficiency Studies}
+\paragraph{Flow}
+We interpolate the top 35 layers of the SPE10 permeability field onto each mesh level.    However the interpolated values are only kept in the middle (reservoir) layer, while overburden and underburden are prescribed constant values of $k_x = k_y = \qty{1e-15}{\milli\darcy}$ (displayed in \cref{fig:mazumodel2_geosx_setup_permx}) and $k_z = \qty{1e-18}{\milli\darcy}$.    Given that this is a time-dependent compressible problem, we no longer need to fix pressure at the wells, which instead operate at constant mass rate of $m_{\text{inj}} = \qty{1e3}{kg/s}$ for the 4 injectors and $m_{\text{prod}} = -\qty{4e3}{kg/s}$ for the producer.
+
+\paragraph{Geomechanics}
+Once again the log-permeability correlation \cref{eq:young_perm_correlation}, is used to derive a Young's modulus distribution on the entire domain shown in \cref{fig:mazumodel2_geosx_setup_young}.   The deformation is driven by a prescribed normal traction at the top surface of the domain which is ramped up in time from 0 to the final value of $t_z = -\qty{10}{MPa}$.
+
+\paragraph{Poromechanics}
+As before, we combine the flow the geomechanics problems and ignore the prescribed traction. 
+
+\paragraph{Multiscale settings}
+In distributed memory runs the mesh is partitioned across processes by calling ParMETIS on a cell connectivity graph.   A hierarchy of coarse grids is then generated by employing METIS locally within each process with a default coarsening ration of $C_r = 512$ for both flow and mechanics.   The coarsening is stopped when a target global size of 4000 degrees-of-freedom is reached.
+
+\begin{table}
+    \centering
+    \caption[3D unstructured reservoir problem sizes]{3D unstructured reservoir test case: grid resolution levels and corresponding problem sizes}
+    \label{tab:mazumodel2_par_dims}
+    \begin{tabular}{crrrr}
+      \hline\noalign{\smallskip}
+      \multirow{2}{*}{$\ell$} & & \multicolumn{3}{c}{degrees-of-freedom} \\
+      \noalign{\smallskip}\cline{3-5}\noalign{\smallskip}
+      & & flow & mechanics & coupled \\
+      \hline\noalign{\smallskip}
+        2 & &     274,299 &    145,899 &     420,198 \\
+        3 & &   2,194,392 &  1,137,159 &   3,331,551 \\
+        4 & &  17,555,136 &  8,947,359 &  26,502,495 \\
+        5 & & 140,441,088 & 70,919,595 & 211,360,683 \\
+      \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table}
+
+\begin{figure} [htbp]
+    \subcaptionbox
+    {
+        Young's modulus, $E$ [\unit{Pa}]
+        \label{fig:mazumodel2_geosx_setup_young}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/young}
+    }
+    \hfill
+    \subcaptionbox
+    {
+        Log-scale horizontal permeability, $k_x$ [\unit{m^2}]
+        \label{fig:mazumodel2_geosx_setup_permx}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/permx}
+    }
+    \hfill
+    \subcaptionbox
+    {
+        Solution pressure, $p$ [\unit{Pa}]
+        \label{fig:mazumodel2_geosx_sol_p}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/poro_sol_p}
+    }
+    \par\bigskip
+    \subcaptionbox
+    {
+        Solution $x$-displacement, $u_x$ [\unit{m}]
+        \label{fig:mazumodel2_geosx_sol_x}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/poro_sol_x}
+    }
+    \hfill
+    \subcaptionbox
+    {
+        Solution $y$-displacement, $u_y$ [\unit{m}]
+        \label{fig:mazumodel2_geosx_sol_y}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/poro_sol_y}
+    }
+    \hfill
+    \subcaptionbox
+    {
+        Solution $z$-displacement, $u_z$ [\unit{m}]
+        \label{fig:mazumodel2_geosx_sol_z}
+    }
+    [0.3\textwidth]
+    {
+        \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/poro_sol_z}
+    }
+    \caption[3D synthetic reservoir test case setup]{3D synthetic reservoir test case setup and solution after 10 time steps (at $t = \qty{1e7}{s})$ for the coupled poromechanics problem.}
+    \label{fig:mazumodel2_geosx_setup}
+\end{figure}
+
+\subsection{Scalability}
+
+
 
 \subsection{Optimal Parameters Choices}
-
-\subsection{Comparison with AMG}
 
 % ===================== SECTION =====================
 \section{Summary}
