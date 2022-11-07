@@ -1,3 +1,3 @@
-num_iter_one,t_setup_one,t_solve_one,t_iter_one,t_total_one,num_iter_avg,t_setup_avg,t_solve_avg,t_iter_avg,t_total_avg
-24.0,77.154,18.730,0.780,95.884,24.0,18.268,14.074,0.586,32.341
-24.0,75.142,21.775,0.907,96.917,23.2,18.552,14.036,0.605,32.588
+num_iter_one,t_setup_one,t_solve_one,t_iter_one,t_total_one,num_iter_avg,t_setup_avg,t_solve_avg,t_iter_avg,t_total_avg,ranks,cores,total_cores
+24.0,77.154,18.730,0.780,95.884,24.0,18.268,14.074,0.586,32.341,8,24,192
+24.0,75.142,21.775,0.907,96.917,23.2,18.552,14.036,0.605,32.588,8,24,192

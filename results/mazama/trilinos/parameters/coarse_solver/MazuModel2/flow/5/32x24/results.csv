@@ -1,2 +1,3 @@
-99.0,80.543,259.419,2.620,339.962,102.5,19.035,292.796,2.857,311.831
-97.0,83.807,256.548,2.645,340.355,100.4,19.281,280.897,2.798,300.177
+num_iter_one,t_setup_one,t_solve_one,t_iter_one,t_total_one,num_iter_avg,t_setup_avg,t_solve_avg,t_iter_avg,t_total_avg,ranks,cores,total_cores
+,,,,,,,,,,,,
+,,,,,,,,,,,,
