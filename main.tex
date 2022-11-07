@@ -81,6 +81,62 @@
 \newcommand{\Colorcircle}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
 \newcommand{\Colorsquare}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
 
+% reading csv files by default
+\pgfplotstableset{col sep=comma}
+
+% pgfplots styles
+
+\pgfplotsset{
+    ConvergencePlot/.style = {
+        width = \textwidth,
+        height = \textwidth,
+        grid = both,
+        every axis plot/.append style = {very thick},
+        no markers,
+        major grid style = {very thin, draw=gray!50},
+        xmin = 0,
+        xlabel = {Iteration number},
+        ylabel = {$\|r^k\|_2/\|r^0\|_2$},
+        legend pos = north east,
+        legend cell align = {left},
+        legend style = {font = \footnotesize}
+    }
+}
+
+\pgfplotsset{
+    IterationBarPlot/.style = {
+        width = \textwidth,
+        height = \textwidth,
+        ybar,
+        ymajorgrids,
+        ymin = 0,
+        major grid style = {very thin, draw=gray!50},
+        ylabel = {Number of iterations},
+        tick style={draw=none},
+        bar width = 5pt,
+        legend pos = north west,
+        legend cell align = {left},
+        legend style = {font = \footnotesize}
+    }
+}
+
+\pgfplotsset{
+    WeakScalingTimePlot/.style = {
+        width  = \linewidth,
+        height = \linewidth,
+        grid = both,
+        major grid style={very thin,draw=gray!50},
+        minor grid style={ultra thin,draw=gray!20},
+        tick style={draw=none},
+        ylabel = {Time (s)},
+        log basis x={2},
+        log ticks with fixed point,
+        legend pos = north west,
+        legend cell align = {left},
+        legend style = {font=\footnotesize}
+    }
+}
+
 % Basic thesis information
 \dept{Energy Resources Engineering}
 \title{Multiscale Solver for Subsurface Poromechanical Problems}
