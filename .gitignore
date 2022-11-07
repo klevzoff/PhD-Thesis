@@ -1,2 +1,12 @@
 _minted-main/
 build/
+*.aux
+*.bbl
+*.blg
+*.lof
+*.log
+*.lot
+*.out
+*.pdf
+*.synctex.gz
+*.toc
