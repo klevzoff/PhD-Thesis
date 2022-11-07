@@ -324,6 +324,8 @@ Similar to the examples presented in \cref{sec:msrsb_examples}, we define three 
 
 In all cases, we run each problem for 10 time steps and average performance metrics (iterations and timings) over the steps.   In the context of time-dependent problems an expensive part of multiscale setup (coarsening and construction of the grid hierarchy, as well as initial convergence of the basis functions) is amortized across many time steps, while a small number of additional smoothing iterations are sufficient to evolve the grid transfer operators as system matrix changes in the course of the simulation.   In addition, in order to optimize the setup cost, we use a relaxed tolerance of $\varepsilon_{\text{sm}} = \num{1e-1}$ as convergence criteria for basis functions and limit the number of smoothing iterations to 20.   Since the problems considered here do not produce symmetric matrices (in case of mechanics, due to non-symmetric treatment of Dirichlet boundary conditions in GEOSX), we use right-preconditioned GMRES as the iterative solver with a convergence tolerance of $\varepsilon_r = \num{1e-8}$.
 
+Since a black-box AMG solver cannot be applied to the coupled system directly due to lack of convergence, when comparing multiscale with AMG for the poromechanical problems we employ fixed-stress block-triangular preconditioner described in \cref{subsubsec:geosx_block_precond} with two separate AMG instances as $M_1^{-1}$ and $M_2^{-1}$.   Note that this approach is mostly identical to the one employed in \textit{hypre}'s MGR solver \cite{Bui2020} for single-phase poromechanics (and in our tests they showed similar performance), but using the block preconditioner template enables us to easily test different combinations of AMG and multiscale sub-block solvers within the same computational framework. 
+
 \subsubsection{Test Case 1}
 
 The first test represents a \qtyproduct{1x1x0.1}{\km} domain that is discretized with a Cartesian grid using an equal number of cells in $x$, $y$ and $z$ directions, which creates an anisotropy factor of 10 between horizontal and vertical cell dimensions.   This geometric anisotropy is typical in subsurface modeling where grids are highly resolved in the vertical direction, and must be handled robustly by the solver.   Grid resolution levels and corresponding problem sizes are summarized in \cref{tab:cart_dims}.   The time step size for all three problems is chosen to be $\Delta t = \qty{1e5}{s}$.
@@ -492,9 +494,99 @@ In distributed memory runs the mesh is partitioned across processes by calling P
     \label{fig:mazumodel2_geosx_setup}
 \end{figure}
 
-\subsection{Scalability}
+\subsection{Weak Scaling}
 
+\subsubsection{Test Case 1}
 
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    % \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
+    % \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
+    % \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
+    % \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
+    \begin{semilogxaxis}
+      [ ybar,
+        width  = \linewidth,
+        height = \linewidth,
+        grid = major,
+        major grid style={very thin,draw=gray!50},
+        xlabel={Number of cores},
+        ylabel={Number of iterations},
+        legend pos=north east,
+        legend cell align={left},
+        legend style={font=\footnotesize}]
+      \addplot+[draw=blue]
+               table[x expr=(\coordindex+1)^2, y index=0, col sep=comma]
+               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
+      \addlegendentry{Multiscale}
+      \addplot+[draw=red]
+               table[x expr=(\coordindex+1)^2, y index=0, col sep=comma]
+               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
+      \addlegendentry{AMG}
+    \end{semilogxaxis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:cart_mech_scaling_weak_omp_iter}
+  \end{subfigure}
+  % \hfill
+  % \begin{subfigure}[t]{0.48\textwidth}
+  %   \centering
+  %   \begin{tikzpicture}
+  %   \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
+  %   \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
+  %   \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
+  %   \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
+  %   \begin{semilogyaxis}
+  %     [ width  = \linewidth,
+  %       height = \linewidth,
+  %       grid = both,
+  %       no markers,
+  %       major grid style={very thin,draw=gray!50},
+  %       xmin=0, xmax=400,
+  %       %xlabel={Iteration number},
+  %       %ylabel={$\|r^k\|_2/\|r^0\|_2$},
+  %       ytick={1e-8,1e-6,1e-4,1e-2,1e-0},
+  %       legend pos=north east,
+  %       legend cell align={left},
+  %       legend style={font=\footnotesize}]
+  %     \addplot+[color_l0, solid, very thick,]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r0_ms_sgs_x1.csv};
+  %     \addplot+[color_l0, densely dashed, very thick, forget plot]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r0_sm_sgs_x1.csv};
+  %     \addlegendentry{$l=0$}
+  %     \addplot+[color_l1, solid, very thick,]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r1_ms_sgs_x1.csv};
+  %     \addplot+[color_l1, densely dashed, very thick, forget plot]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r1_sm_sgs_x1.csv};
+  %     \addlegendentry{$l=1$}
+  %     \addplot+[color_l2, solid, very thick,]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r2_ms_sgs_x1.csv};
+  %     \addplot+[color_l2, densely dashed, very thick, forget plot]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r2_sm_sgs_x1.csv};
+  %     \addlegendentry{$l=2$}
+  %     \addplot+[color_l3, solid, very thick,]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r3_ms_sgs_x1.csv};
+  %     \addplot+[color_l3, densely dashed, very thick, forget plot]
+  %              table[x expr=\coordindex, y index=0]
+  %              {./figs/MazuModel2/matlab/data/conv/flow_r3_sm_sgs_x1.csv};
+  %     \addlegendentry{$l=3$}
+  %   \end{semilogyaxis}
+  %   \end{tikzpicture}
+  %   \caption{}
+  %   \label{fig:mazumodel2_matlab_conv_flow}
+  % \end{subfigure}
+  \caption[3D Cartesian mechanics example weak scaling]{3D Cartesian mechanics example weak scaling: iterations and setup/solve times}
+  \label{fig:cart_mech_scaling_weak}
+\end{figure}
 
 \subsection{Optimal Parameters Choices}
 

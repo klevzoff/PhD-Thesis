@@ -222,6 +222,7 @@ Abstracts away the details of using various preconditioners available in externa
 Finally, a wrapper around external library solvers is provided by each interface, giving users access to more advanced iterative methods and optimized implementations (in addition to GEOSX's own backend-agnostic Krylov solvers), and allowing for potentially tighter integration between the iterative method and the preconditioner in a particular package.
 
 \subsubsection{Block Preconditioner}
+\label{subsubsec:geosx_block_precond}
 
 To facilitate the development of custom multi-level and multi-physics preconditioners, we have developed a flexible template for a $2 \times 2$ block preconditioner that is parametrized on the vector type and therefore works with any linear algebra backend.   The operator is implemented in a general form: given an arbitrary partitioning of a system matrix $A$ into blocks
 \begin{align}
@@ -237,16 +238,16 @@ To facilitate the development of custom multi-level and multi-physics preconditi
 \begin{align}
   M^{-1} = P_\pi^T
   \underbrace{\begin{bmatrix}
-  I_{1} & -M_{1}^{-1}A_{12} \\
-        &  I_{2}
+  I_1 & -M_1^{-1}A_{12} \\
+      &  I_2
   \end{bmatrix}}_{\widetilde{U}^{-1}}
   \underbrace{\begin{bmatrix}
-  M_{1}^{-1} &            \\
-             & M_{2}^{-1}
+  M_1^{-1} &            \\
+           & M_2^{-1}
   \end{bmatrix}}_{\widetilde{D}^{-1}}
   \underbrace{\begin{bmatrix}
-   I_{1}            &       \\
-  -A_{21}M_{1}^{-1} & I_{2}
+   I_1            &       \\
+  -A_{21}M_1^{-1} & I_2
   \end{bmatrix}}_{\widetilde{L}^{-1}}
   P_\pi
   \label{eq:block_precond}
