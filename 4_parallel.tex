@@ -542,7 +542,7 @@ The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in
 \end{figure}
 
 \paragraph{Flow}
-The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_scaling_weak_flow}.   As evident from these plots, MS solver experiences an up to 2.5x growth in iterations count, while AMG profile remains mostly flat.   AMG's coarsening strategy is designed to be optimal for a scalar elliptic equation in combination with a pointwise smoother, while MS here employs simple geometric semi-coarsening that is not based on rigorous theoretical approaches, and our results confirm that.   The iteration count difference is reflected in solution and total times, while setup time for both methods exhibits a similar scalability trend.
+The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in multi-node runs.   Convergence and timing results are shown in \cref{fig:cart_scaling_weak_flow}.   As evident from these plots, MS solver experiences an up to 2.5x growth in iterations count, while AMG profile remains mostly flat.   AMG's coarsening strategy is designed to be optimal for a scalar elliptic equation in combination with a pointwise smoother, while MS here employs simple geometric semi-coarsening that is not based on rigorous theoretical approaches, and our results confirm that, indicating that the method is much more sensitive to smoother quality.   The iteration count difference is reflected in solution times, while setup times for both methods exhibit comparable scalability trends.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -579,6 +579,47 @@ The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in 
   \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
   \label{fig:cart_scaling_weak_flow}
 \end{figure}
+
+\paragraph{Poromechanics}
+The problem size is approximately 180k DoF/core in multicore and 58k DoF/core in multi-node runs.   Convergence and timing results are shown in \cref{fig:cart_scaling_weak_poro}.   The iteration count scaling here is largely driven by the flow sub-problem for which multiscale doesn't perform as well, but the effect is less pronounced, since multiscale has excellent scalability for the mechanics sub-problem.   Once again, the grow in iteration count affects the total solution time which scales worse than AMG even though cost per iteration scales slightly better due to shallower hierarchy of grid levels.   On the other hand, setup stage exhibits very similar scalability to that of AMG, although at a slightly higher overall cost due to the time taken by MS implementation to construct coupled coarse systems at every level and extract matrix sub-blocks for the block-triangular smoother.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/omp_iter}
+    \input{figs/Cart/scaling/weak/poro/omp_iter.tex}
+    \caption{}
+    \label{fig:cart_scaling_weak_poro_omp_iter}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_iter}
+    \input{figs/Cart/scaling/weak/poro/mpi_iter.tex}
+    \caption{}
+    \label{fig:cart_scaling_weak_poro_mpi_iter}
+  \end{subfigure}
+  \par\bigskip 
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/omp_time}
+    \input{figs/Cart/scaling/weak/poro/omp_time.tex}
+    \caption{}
+    \label{fig:cart_scaling_weak_poro_omp_time}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_time}
+    \input{figs/Cart/scaling/weak/poro/mpi_time.tex}
+    \caption{}
+    \label{fig:cart_scaling_weak_poro_mpi_time}
+  \end{subfigure}
+  \caption[3D Cartesian poromechanics example weak scaling]{3D Cartesian poromechanics example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
+  \label{fig:cart_scaling_weak_poro}
+\end{figure}
+
+
 
 \subsection{Optimal Parameters Choices}
 

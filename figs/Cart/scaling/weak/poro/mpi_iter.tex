@@ -6,11 +6,11 @@
         xlabel = {Number of nodes} ]
       \addplot+[draw=blue]
                table[x=ranks, y=num_iter_avg]
-               {results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/ms/mpi/results.csv};
       \addlegendentry{MS}
       \addplot+[draw=red]
                table[x=ranks, y=num_iter_avg]
-               {results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/amg/mpi/results.csv};
       \addlegendentry{AMG}
     \end{axis}
 \end{tikzpicture}

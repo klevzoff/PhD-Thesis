@@ -2,31 +2,31 @@
     \begin{loglogaxis}
       [ WeakScalingTimePlot,
         xlabel = {Number of nodes},
-        ymax = 100,
+        ymax = 1000,
         log basis x={2} ]
       \addplot+[solid, very thick]
                table[x=ranks, y=t_setup_avg]
-               {results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/ms/mpi/results.csv};
       \addlegendentry{MS setup}
       \addplot+[solid, very thick]
                table[x=ranks, y=t_setup_avg]
-               {results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/amg/mpi/results.csv};
       \addlegendentry{AMG setup}
       \addplot+[solid, very thick]
                table[x=ranks, y=t_solve_avg]
-               {results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/ms/mpi/results.csv};
       \addlegendentry{MS solve}
       \addplot+[solid, very thick]
                table[x=ranks, y=t_solve_avg]
-               {results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
+               {results/quartz/hypre/scaling/weak/Cart/poro/amg/mpi/results.csv};
       \addlegendentry{AMG solve}
 %      \addplot+[solid, very thick]
 %               table[x=ranks, y=t_total_avg]
-%               {results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
+%               {results/quartz/hypre/scaling/weak/Cart/poro/ms/mpi/results.csv};
 %      \addlegendentry{MS total}
 %      \addplot+[solid, very thick]
 %               table[x=ranks, y=t_total_avg]
-%               {results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
+%               {results/quartz/hypre/scaling/weak/Cart/poro/amg/mpi/results.csv};
 %      \addlegendentry{AMG total}
     \end{loglogaxis}
 \end{tikzpicture}
