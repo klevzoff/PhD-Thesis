@@ -1,5 +1,6 @@
 _minted-main/
 build/
+results/
 main.pdf
 *.aux
 *.bbl

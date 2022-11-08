@@ -1,3 +1,0 @@
-num_iter_one,t_setup_one,t_solve_one,t_iter_one,t_total_one,num_iter_avg,t_setup_avg,t_solve_avg,t_iter_avg,t_total_avg,ranks,cores,total_cores
-22.0,7.467,5.877,0.267,13.344,23.6,7.626,5.958,0.252,13.584,1,1,1
-33.0,12.801,14.029,0.425,26.830,34.0,12.443,14.328,0.421,26.771,8,1,8
