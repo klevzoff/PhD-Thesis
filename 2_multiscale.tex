@@ -1429,31 +1429,31 @@ The same series of tests is repeated for the unstructured 3D problem which is in
       [ ConvergencePlot,
         xmax=150,
         ytick={1e-8,1e-6,1e-4,1e-2,1e-0} ]
-      \addplot+[color_l0, solid, very thick,]
+      \addplot+[color_l0, solid]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r0_ms_sgs_x1.csv};
-      \addplot+[color_l0, densely dashed, very thick, forget plot]
+      \addplot+[color_l0, densely dashed, forget plot]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r0_sm_sgs_x1.csv};
       \addlegendentry{$l=0$}
-      \addplot+[color_l1, solid, very thick,]
+      \addplot+[color_l1, solid,]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r1_ms_sgs_x1.csv};
-      \addplot+[color_l1, densely dashed, very thick, forget plot]
+      \addplot+[color_l1, densely dashed, forget plot]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r1_sm_sgs_x1.csv};
       \addlegendentry{$l=1$}
-      \addplot+[color_l2, solid, very thick,]
+      \addplot+[color_l2, solid,]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r2_ms_sgs_x1.csv};
-      \addplot+[color_l2, densely dashed, very thick, forget plot]
+      \addplot+[color_l2, densely dashed, forget plot]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r2_sm_sgs_x1.csv};
       \addlegendentry{$l=2$}
-      \addplot+[color_l3, solid, very thick,]
+      \addplot+[color_l3, solid,]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r3_ms_sgs_x1.csv};
-      \addplot+[color_l3, densely dashed, very thick, forget plot]
+      \addplot+[color_l3, densely dashed, forget plot]
                table[x expr=\coordindex, y index=0]
                {./figs/MazuModel2/matlab/data/conv/mech_r3_sm_sgs_x1.csv};
       \addlegendentry{$l=3$}

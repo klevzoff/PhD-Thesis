@@ -324,7 +324,7 @@ Similar to the examples presented in \cref{sec:msrsb_examples}, we define three 
 
 In all cases, we run each problem for 10 time steps and average performance metrics (iterations and timings) over the steps.   In the context of time-dependent problems an expensive part of multiscale setup (coarsening and construction of the grid hierarchy, as well as initial convergence of the basis functions) is amortized across many time steps, while a small number of additional smoothing iterations are sufficient to evolve the grid transfer operators as system matrix changes in the course of the simulation.   In addition, in order to optimize the setup cost, we use a relaxed tolerance of $\varepsilon_{\text{sm}} = \num{1e-1}$ as convergence criteria for basis functions and limit the number of smoothing iterations to 20.   Since the problems considered here do not produce symmetric matrices (in case of mechanics, due to non-symmetric treatment of Dirichlet boundary conditions in GEOSX), we use right-preconditioned GMRES as the iterative solver with a convergence tolerance of $\varepsilon_r = \num{1e-8}$.
 
-Since a black-box AMG solver cannot be applied to the coupled system directly due to lack of convergence, when comparing multiscale with AMG for the poromechanical problems we employ fixed-stress block-triangular preconditioner described in \cref{subsubsec:geosx_block_precond} with two separate AMG instances as $M_1^{-1}$ and $M_2^{-1}$.   Note that this approach is mostly identical to the one employed in \textit{hypre}'s MGR solver \cite{Bui2020} for single-phase poromechanics (and in our tests they showed similar performance), but using the block preconditioner template enables us to easily test different combinations of AMG and multiscale sub-block solvers within the same computational framework. 
+Since a black-box AMG solver cannot be applied to the coupled system directly due to lack of convergence, when comparing multiscale with AMG for the poromechanical problems we employ fixed-stress block-triangular preconditioner described in \cref{subsubsec:geosx_block_precond} with two separate AMG instances as $M_1^{-1}$ and $M_2^{-1}$.   Note that this approach is mostly identical to the one employed in \textit{hypre}'s MGR solver \cite{Bui2020} for single-phase poromechanics (and in our tests they showed similar performance), but using the block preconditioner template enables us to easily test different combinations of AMG and multiscale sub-block solvers within the same computational framework.
 
 \subsubsection{Test Case 1}
 
@@ -496,7 +496,14 @@ In distributed memory runs the mesh is partitioned across processes by calling P
 
 \subsection{Weak Scaling}
 
+We first consider a series of weak scaling experiments, in which the number of processing units (CPU cores) is increased while keeping the workload (measured in degrees-of-freedom) per core constant.   We will separately consider shared memory (multicore) scaling within a single compute node, and distributed memory (multi-node) scaling in which every parallel process is using all available cores on a single node, looking at both algorithmic (iterations) and implementation (timing) scalability.   Ideal weak scaling implies both number of iterations and time remain constant as the problem is scaled up, however it is almost never achieved in practice due to hardware constraints (communication and memory bandwidth/latencies).   Parallel efficiency in weak scaling studies is defined as the ratio of serial (singe-core or single-node) to parallel execution time.   To put the results for out multiscale (MS) implementation into context, we compare them to a classical algebraic multigrid (AMG) solver from \textit{hypre} package. 
+
 \subsubsection{Test Case 1}
+
+For all three problems we use a series of grid resolutions (see \cref{tab:cart_dims}) from \numproduct{35x35x35} (1 core) to \numproduct{100x100x100} (24 cores) for multicore tests and from \numproduct{70x70x70} (1 node) to \numproduct{280x280x280} (64 nodes) for multi-node tests.   
+
+\paragraph{Geomechanics}
+The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_mech_scaling_weak}.   The number of iterations is experiencing a limited growth (1.5--2x) that is similar between MS and AMG.   This is explained by a slight degradation of smoother strength that is known to occur for hybrid Gauss-Siedel (due to a reduction in the size of per-processor matrix block), which affects both methods equally.   The time scaling is also quite similar for both solvers, with multiscale taking a small lead on solution time.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -510,7 +517,7 @@ In distributed memory runs the mesh is partitioned across processes by calling P
       \addplot+[draw=blue]
                table[x=cores, y=num_iter_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
-      \addlegendentry{Multiscale}
+      \addlegendentry{MS}
       \addplot+[draw=red]
                table[x=cores, y=num_iter_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
@@ -532,7 +539,7 @@ In distributed memory runs the mesh is partitioned across processes by calling P
       \addplot+[draw=blue]
                table[x=ranks, y=num_iter_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
-      \addlegendentry{Multiscale}
+      \addlegendentry{MS}
       \addplot+[draw=red]
                table[x=ranks, y=num_iter_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
@@ -567,6 +574,14 @@ In distributed memory runs the mesh is partitioned across processes by calling P
                table[x=cores, y=t_solve_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
       \addlegendentry{AMG solve}
+%      \addplot+[solid, very thick]
+%               table[x=cores, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
+%      \addlegendentry{MS total}
+%      \addplot+[solid, very thick]
+%               table[x=cores, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
+%      \addlegendentry{AMG total}
     \end{loglogaxis}
     \end{tikzpicture}
     \caption{}
@@ -597,13 +612,148 @@ In distributed memory runs the mesh is partitioned across processes by calling P
                table[x=ranks, y=t_solve_avg]
                {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
       \addlegendentry{AMG solve}
+%      \addplot+[solid, very thick]
+%               table[x=ranks, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
+%      \addlegendentry{MS total}
+%      \addplot+[solid, very thick]
+%               table[x=ranks, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
+%      \addlegendentry{AMG total}
     \end{loglogaxis}
     \end{tikzpicture}
     \caption{}
     \label{fig:cart_mech_scaling_weak_mpi_time}
   \end{subfigure}
-  \caption[3D Cartesian mechanics example weak scaling]{3D Cartesian mechanics example weak scaling: iterations and setup/solve times}
+  \caption[3D Cartesian geomechanics example weak scaling]{3D Cartesian geomechanics example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
   \label{fig:cart_mech_scaling_weak}
+\end{figure}
+
+\paragraph{Flow}
+The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_flow_scaling_weak}.   As evident from these plots, MS solver experiences an up to 2.5x growth in iterations count, while AMG profile remains mostly flat.   AMG's coarsening strategy is designed to be optimal for a scalar elliptic equation in combination with a pointwise smoother, while MS here employs simple geometric semi-coarsening that is not based on rigorous theoretical approaches, and our results confirm that.   The iteration count difference is reflected in solution and total times, while setup time for both methods exhibits a similar scalability trend.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}
+      [ IterationBarPlot,
+        symbolic x coords = {1,2,4,8,16,24},
+        xtick = {1,2,4,8,16,24},
+        xlabel = {Number of cores} ]
+      \addplot+[draw=blue]
+               table[x=cores, y=num_iter_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
+      \addlegendentry{Multiscale}
+      \addplot+[draw=red]
+               table[x=cores, y=num_iter_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
+      \addlegendentry{AMG}
+    \end{axis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:cart_flow_scaling_weak_omp_iter}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}
+      [ IterationBarPlot,
+        symbolic x coords = {1,2,4,8,16,32,64},
+        xtick = {1,2,4,8,16,32,64},
+        xlabel = {Number of nodes} ]
+      \addplot+[draw=blue]
+               table[x=ranks, y=num_iter_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
+      \addlegendentry{Multiscale}
+      \addplot+[draw=red]
+               table[x=ranks, y=num_iter_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
+      \addlegendentry{AMG}
+    \end{axis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:cart_flow_scaling_weak_mpi_iter}
+  \end{subfigure}
+  \par\bigskip 
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \begin{loglogaxis}
+      [ WeakScalingTimePlot,
+        xlabel = {Number of cores},
+        ymax = 10,
+        log basis x={2} ]
+      \addplot+[solid, very thick]
+               table[x=cores, y=t_setup_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
+      \addlegendentry{MS setup}
+      \addplot+[solid, very thick]
+               table[x=cores, y=t_setup_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
+      \addlegendentry{AMG setup}
+      \addplot+[solid, very thick]
+               table[x=cores, y=t_solve_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
+      \addlegendentry{MS solve}
+      \addplot+[solid, very thick]
+               table[x=cores, y=t_solve_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
+      \addlegendentry{AMG solve}
+%      \addplot+[solid, very thick]
+%               table[x=cores, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
+%      \addlegendentry{MS total}
+%      \addplot+[solid, very thick]
+%               table[x=cores, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
+%      \addlegendentry{AMG total}
+    \end{loglogaxis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:cart_flow_scaling_weak_omp_time}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \begin{tikzpicture}
+    \begin{loglogaxis}
+      [ WeakScalingTimePlot,
+        xlabel = {Number of cores},
+        ymax = 10,
+        log basis x={2} ]
+      \addplot+[solid, very thick]
+               table[x=ranks, y=t_setup_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
+      \addlegendentry{MS setup}
+      \addplot+[solid, very thick]
+               table[x=ranks, y=t_setup_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
+      \addlegendentry{AMG setup}
+      \addplot+[solid, very thick]
+               table[x=ranks, y=t_solve_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
+      \addlegendentry{MS solve}
+      \addplot+[solid, very thick]
+               table[x=ranks, y=t_solve_avg]
+               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
+      \addlegendentry{AMG solve}
+%      \addplot+[solid, very thick]
+%               table[x=ranks, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
+%      \addlegendentry{MS total}
+%      \addplot+[solid, very thick]
+%               table[x=ranks, y=t_total_avg]
+%               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
+%      \addlegendentry{AMG total}
+    \end{loglogaxis}
+    \end{tikzpicture}
+    \caption{}
+    \label{fig:cart_flow_scaling_weak_mpi_time}
+  \end{subfigure}
+  \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
+  \label{fig:cart_flow_scaling_weak}
 \end{figure}
 
 \subsection{Optimal Parameters Choices}
