@@ -1048,73 +1048,32 @@ The first set of tests is based on a two-dimensional elastic porous medium domai
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \includegraphics[align=b,width=\linewidth]{figs/CrossSection/sketch}
-    \caption{\label{fig:cross_section_sketch}}
+    \caption{}
+    \label{fig:cross_section_sketch}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \definecolor{layer1}{rgb}{0.247,0.524,0.912}
-    \definecolor{layer2}{rgb}{0.937,0.161,0.161}
-    \definecolor{layer3}{rgb}{0.550,0.710,0.000}
-    \definecolor{layer4}{rgb}{0.914,0.725,0.431}
-    \definecolor{layer5}{rgb}{0.678,0.498,0.659}
-    \definecolor{layer6}{rgb}{0.000,0.870,0.870}
-    \begin{semilogxaxis}[ width  = \linewidth,
-                          height = .46\linewidth,
-                          grid = both,
-                          major grid style={very thin,draw=gray!50},
-                          xmin=1e7, xmax=1e10,
-                          ymin=-3, ymax=0,
-                          xlabel={Young's modulus, $E$ [Pa]},
-                          ylabel={Elevation, $z$ [km]},
-                          xtick={1e7,1e8,1e9,1e10},
-                          ytick={-3,-2,...,0},
-                          minor y tick num = 1,
-                          ylabel near ticks,
-                          xlabel near ticks,
-                          every axis plot/.append style = {only marks, mark=*, mark size=1pt},
-                          tick label style={font=\footnotesize},
-                          label style={font=\footnotesize},
-                          legend style={font=\footnotesize},
-                          legend cell align={left},
-                          legend columns=2,
-                          legend pos=north east]
-      \addplot+[layer1, mark options={solid,fill=layer1}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_1.csv};  
-      \addplot+[layer3, mark options={solid,fill=layer3}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_3.csv};   
-      \addplot+[layer2, mark options={solid,fill=layer2}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_2.csv};            
-      \addplot+[layer4, mark options={solid,fill=layer4}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_4.csv};
-      \addplot+[layer5, mark options={solid,fill=layer5}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_5.csv};            
-      \addplot+[layer6, mark options={solid,fill=layer6}]
-               table[x=young_Pa, y=elevation_m]
-               {./figs/CrossSection/data/young/layer_6.csv};
-    \end{semilogxaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/CrossSection/young}
+    \input{figs/CrossSection/young.tex}
     \caption{}
     \label{fig:cross_section_young}
   \end{subfigure} \\
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \includegraphics[align=b,width=\linewidth]{figs/CrossSection/perm}
-    \caption{\label{fig:cross_section_perm}}
+    \caption{}
+    \label{fig:cross_section_perm}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \includegraphics[align=b,width=0.9\linewidth]{figs/CrossSection/coarse_grid}
-    \caption{\label{fig:cross_section_coarse_grid}}
+    \caption{}
+    \label{fig:cross_section_coarse_grid}
   \end{subfigure}
-  \caption[2D cross-section test case setup]{\label{fig:cross_section} 2D cross-section test case setup: (a) physical domain, layers and faults; (b) Young's modulus distribution as a function of the elevation for each layer; (c) permeability map in [m\textsuperscript{2}] displayed on a log-scale, locations of injector (red) and producer (blue) well completions; (d) example of a fine and coarse meshes for smallest problem (refinement level 0).}
+  \caption[2D cross-section test case setup]{2D cross-section test case setup: (a) physical domain, layers and faults; (b) Young's modulus distribution as a function of the elevation for each layer; (c) permeability map in [m\textsuperscript{2}] displayed on a log-scale, locations of injector (red) and producer (blue) well completions; (d) example of a fine and coarse meshes for smallest problem (refinement level 0).}
+  \label{fig:cross_section}
 \end{figure}
 
 \paragraph{Flow}
@@ -1420,90 +1379,16 @@ The same series of tests is repeated for the unstructured 3D problem which is in
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
-    \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
-    \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
-    \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
-    \begin{semilogyaxis}
-      [ ConvergencePlot,
-        xmax=150,
-        ytick={1e-8,1e-6,1e-4,1e-2,1e-0} ]
-      \addplot+[color_l0, solid]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r0_ms_sgs_x1.csv};
-      \addplot+[color_l0, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r0_sm_sgs_x1.csv};
-      \addlegendentry{$l=0$}
-      \addplot+[color_l1, solid,]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r1_ms_sgs_x1.csv};
-      \addplot+[color_l1, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r1_sm_sgs_x1.csv};
-      \addlegendentry{$l=1$}
-      \addplot+[color_l2, solid,]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r2_ms_sgs_x1.csv};
-      \addplot+[color_l2, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r2_sm_sgs_x1.csv};
-      \addlegendentry{$l=2$}
-      \addplot+[color_l3, solid,]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r3_ms_sgs_x1.csv};
-      \addplot+[color_l3, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/mech_r3_sm_sgs_x1.csv};
-      \addlegendentry{$l=3$}
-    \end{semilogyaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/MazuModel2/matlab/conv_mech}
+    \input{figs/MazuModel2/matlab/conv_mech.tex}
     \caption{}
     \label{fig:mazumodel2_matlab_conv_mech}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
-    \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
-    \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
-    \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
-    \begin{semilogyaxis}
-      [ ConvergencePlot,
-        xmax=400,
-        ytick={1e-8,1e-6,1e-4,1e-2,1e-0} ]
-      \addplot+[color_l0, solid]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r0_ms_sgs_x1.csv};
-      \addplot+[color_l0, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r0_sm_sgs_x1.csv};
-      \addlegendentry{$l=0$}
-      \addplot+[color_l1, solid]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r1_ms_sgs_x1.csv};
-      \addplot+[color_l1, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r1_sm_sgs_x1.csv};
-      \addlegendentry{$l=1$}
-      \addplot+[color_l2, solid]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r2_ms_sgs_x1.csv};
-      \addplot+[color_l2, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r2_sm_sgs_x1.csv};
-      \addlegendentry{$l=2$}
-      \addplot+[color_l3, solid]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r3_ms_sgs_x1.csv};
-      \addplot+[color_l3, densely dashed, forget plot]
-               table[x expr=\coordindex, y index=0]
-               {./figs/MazuModel2/matlab/data/conv/flow_r3_sm_sgs_x1.csv};
-      \addlegendentry{$l=3$}
-    \end{semilogyaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/MazuModel2/matlab/conv_flow}
+    \input{figs/MazuModel2/matlab/conv_flow.tex}
     \caption{}
     \label{fig:mazumodel2_matlab_conv_flow}
   \end{subfigure}

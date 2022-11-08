@@ -1,0 +1,39 @@
+\begin{tikzpicture}
+    \definecolor{color_l0}{rgb}{0.247,0.524,0.912}
+    \definecolor{color_l1}{rgb}{0.937,0.161,0.161}
+    \definecolor{color_l2}{rgb}{0.678,0.498,0.659}
+    \definecolor{color_l3}{rgb}{0.000,0.870,0.870}
+    \begin{semilogyaxis}
+      [ ConvergencePlot,
+        xmax=400,
+        ytick={1e-8,1e-6,1e-4,1e-2,1e-0} ]
+      \addplot+[color_l0, solid]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r0_ms_sgs_x1.csv};
+      \addplot+[color_l0, densely dashed, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r0_sm_sgs_x1.csv};
+      \addlegendentry{$l=0$}
+      \addplot+[color_l1, solid]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r1_ms_sgs_x1.csv};
+      \addplot+[color_l1, densely dashed, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r1_sm_sgs_x1.csv};
+      \addlegendentry{$l=1$}
+      \addplot+[color_l2, solid]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r2_ms_sgs_x1.csv};
+      \addplot+[color_l2, densely dashed, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r2_sm_sgs_x1.csv};
+      \addlegendentry{$l=2$}
+      \addplot+[color_l3, solid]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r3_ms_sgs_x1.csv};
+      \addplot+[color_l3, densely dashed, forget plot]
+               table[x expr=\coordindex, y index=0]
+               {figs/MazuModel2/matlab/data/conv/flow_r3_sm_sgs_x1.csv};
+      \addlegendentry{$l=3$}
+    \end{semilogyaxis}
+    \end{tikzpicture}

@@ -1,0 +1,16 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ IterationBarPlot,
+        symbolic x coords = {1,2,4,8,16,24},
+        xtick = {1,2,4,8,16,24},
+        xlabel = {Number of cores} ]
+      \addplot+[draw=blue]
+               table[x=cores, y=num_iter_avg]
+               {results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
+      \addlegendentry{MS}
+      \addplot+[draw=red]
+               table[x=cores, y=num_iter_avg]
+               {results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
+      \addlegendentry{AMG}
+    \end{axis}
+\end{tikzpicture}

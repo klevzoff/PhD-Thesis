@@ -1,0 +1,47 @@
+\begin{tikzpicture}
+    \definecolor{layer1}{rgb}{0.247,0.524,0.912}
+    \definecolor{layer2}{rgb}{0.937,0.161,0.161}
+    \definecolor{layer3}{rgb}{0.550,0.710,0.000}
+    \definecolor{layer4}{rgb}{0.914,0.725,0.431}
+    \definecolor{layer5}{rgb}{0.678,0.498,0.659}
+    \definecolor{layer6}{rgb}{0.000,0.870,0.870}
+    \begin{semilogxaxis}[ width  = \linewidth,
+                          height = .46\linewidth,
+                          grid = both,
+                          major grid style={very thin,draw=gray!50},
+                          xmin=1e7, xmax=1e10,
+                          ymin=-3, ymax=0,
+                          xlabel={Young's modulus, $E$ [Pa]},
+                          ylabel={Elevation, $z$ [km]},
+                          xtick={1e7,1e8,1e9,1e10},
+                          ytick={-3,-2,...,0},
+                          minor y tick num = 1,
+                          ylabel near ticks,
+                          xlabel near ticks,
+                          every axis plot/.append style = {only marks, mark=*, mark size=1pt},
+                          tick label style={font=\footnotesize},
+                          label style={font=\footnotesize},
+                          legend style={font=\footnotesize},
+                          legend cell align={left},
+                          legend columns=2,
+                          legend pos=north east]
+      \addplot+[layer1, mark options={solid,fill=layer1}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_1.csv};  
+      \addplot+[layer3, mark options={solid,fill=layer3}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_3.csv};   
+      \addplot+[layer2, mark options={solid,fill=layer2}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_2.csv};            
+      \addplot+[layer4, mark options={solid,fill=layer4}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_4.csv};
+      \addplot+[layer5, mark options={solid,fill=layer5}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_5.csv};            
+      \addplot+[layer6, mark options={solid,fill=layer6}]
+               table[x=young_Pa, y=elevation_m]
+               {figs/CrossSection/data/young/layer_6.csv};
+    \end{semilogxaxis}
+\end{tikzpicture}

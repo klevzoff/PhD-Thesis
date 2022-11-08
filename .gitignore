@@ -1,5 +1,6 @@
 _minted-main/
 build/
+main.pdf
 *.aux
 *.bbl
 *.blg
@@ -7,6 +8,9 @@ build/
 *.log
 *.lot
 *.out
-*.pdf
 *.synctex.gz
+*.synctex(busy)
 *.toc
+*.dep
+*.dpth
+*.auxlock

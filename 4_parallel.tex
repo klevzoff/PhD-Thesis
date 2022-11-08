@@ -503,257 +503,81 @@ We first consider a series of weak scaling experiments, in which the number of p
 For all three problems we use a series of grid resolutions (see \cref{tab:cart_dims}) from \numproduct{35x35x35} (1 core) to \numproduct{100x100x100} (24 cores) for multicore tests and from \numproduct{70x70x70} (1 node) to \numproduct{280x280x280} (64 nodes) for multi-node tests.   
 
 \paragraph{Geomechanics}
-The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_mech_scaling_weak}.   The number of iterations is experiencing a limited growth (1.5--2x) that is similar between MS and AMG.   This is explained by a slight degradation of smoother strength that is known to occur for hybrid Gauss-Siedel (due to a reduction in the size of per-processor matrix block), which affects both methods equally.   The time scaling is also quite similar for both solvers, with multiscale taking a small lead on solution time.
+The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_scaling_weak_mech}.   The number of iterations is experiencing a limited growth (1.5--2x) that is similar between MS and AMG.   This is explained by a slight degradation of smoother strength that is known to occur for hybrid Gauss-Siedel (due to a reduction in the size of per-processor matrix block), which affects both methods equally.   The time scaling is also quite similar for both solvers, with multiscale taking a small lead on solution time.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{axis}
-      [ IterationBarPlot,
-        symbolic x coords = {1,2,4,8,16,24},
-        xtick = {1,2,4,8,16,24},
-        xlabel = {Number of cores} ]
-      \addplot+[draw=blue]
-               table[x=cores, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
-      \addlegendentry{MS}
-      \addplot+[draw=red]
-               table[x=cores, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
-      \addlegendentry{AMG}
-    \end{axis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/omp_iter}
+    \input{figs/Cart/scaling/weak/mech/omp_iter.tex}
     \caption{}
-    \label{fig:cart_mech_scaling_weak_omp_iter}
+    \label{fig:cart_scaling_weak_mech_omp_iter}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{axis}
-      [ IterationBarPlot,
-        symbolic x coords = {1,2,4,8,16,32,64},
-        xtick = {1,2,4,8,16,32,64},
-        xlabel = {Number of nodes} ]
-      \addplot+[draw=blue]
-               table[x=ranks, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
-      \addlegendentry{MS}
-      \addplot+[draw=red]
-               table[x=ranks, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
-      \addlegendentry{AMG}
-    \end{axis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_iter}
+    \input{figs/Cart/scaling/weak/mech/mpi_iter.tex}
     \caption{}
-    \label{fig:cart_mech_scaling_weak_mpi_iter}
+    \label{fig:cart_scaling_weak_mech_mpi_iter}
   \end{subfigure}
   \par\bigskip 
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{loglogaxis}
-      [ WeakScalingTimePlot,
-        xlabel = {Number of cores},
-        ymax = 100,
-        log basis x={2} ]
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
-      \addlegendentry{MS setup}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
-      \addlegendentry{AMG setup}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
-      \addlegendentry{MS solve}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
-      \addlegendentry{AMG solve}
-%      \addplot+[solid, very thick]
-%               table[x=cores, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/omp/results.csv};
-%      \addlegendentry{MS total}
-%      \addplot+[solid, very thick]
-%               table[x=cores, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/omp/results.csv};
-%      \addlegendentry{AMG total}
-    \end{loglogaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/omp_time}
+    \input{figs/Cart/scaling/weak/mech/omp_time.tex}
     \caption{}
-    \label{fig:cart_mech_scaling_weak_omp_time}
+    \label{fig:cart_scaling_weak_mech_omp_time}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{loglogaxis}
-      [ WeakScalingTimePlot,
-        xlabel = {Number of cores},
-        ymax = 100,
-        log basis x={2} ]
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
-      \addlegendentry{MS setup}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
-      \addlegendentry{AMG setup}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
-      \addlegendentry{MS solve}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
-      \addlegendentry{AMG solve}
-%      \addplot+[solid, very thick]
-%               table[x=ranks, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/mech/ms/mpi/results.csv};
-%      \addlegendentry{MS total}
-%      \addplot+[solid, very thick]
-%               table[x=ranks, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/mech/amg/mpi/results.csv};
-%      \addlegendentry{AMG total}
-    \end{loglogaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_time}
+    \input{figs/Cart/scaling/weak/mech/mpi_time.tex}
     \caption{}
-    \label{fig:cart_mech_scaling_weak_mpi_time}
+    \label{fig:cart_scaling_weak_mech_mpi_time}
   \end{subfigure}
   \caption[3D Cartesian geomechanics example weak scaling]{3D Cartesian geomechanics example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
-  \label{fig:cart_mech_scaling_weak}
+  \label{fig:cart_scaling_weak_mech}
 \end{figure}
 
 \paragraph{Flow}
-The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_flow_scaling_weak}.   As evident from these plots, MS solver experiences an up to 2.5x growth in iterations count, while AMG profile remains mostly flat.   AMG's coarsening strategy is designed to be optimal for a scalar elliptic equation in combination with a pointwise smoother, while MS here employs simple geometric semi-coarsening that is not based on rigorous theoretical approaches, and our results confirm that.   The iteration count difference is reflected in solution and total times, while setup time for both methods exhibits a similar scalability trend.
+The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_scaling_weak_flow}.   As evident from these plots, MS solver experiences an up to 2.5x growth in iterations count, while AMG profile remains mostly flat.   AMG's coarsening strategy is designed to be optimal for a scalar elliptic equation in combination with a pointwise smoother, while MS here employs simple geometric semi-coarsening that is not based on rigorous theoretical approaches, and our results confirm that.   The iteration count difference is reflected in solution and total times, while setup time for both methods exhibits a similar scalability trend.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{axis}
-      [ IterationBarPlot,
-        symbolic x coords = {1,2,4,8,16,24},
-        xtick = {1,2,4,8,16,24},
-        xlabel = {Number of cores} ]
-      \addplot+[draw=blue]
-               table[x=cores, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
-      \addlegendentry{Multiscale}
-      \addplot+[draw=red]
-               table[x=cores, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
-      \addlegendentry{AMG}
-    \end{axis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/omp_iter}
+    \input{figs/Cart/scaling/weak/flow/omp_iter.tex}
     \caption{}
-    \label{fig:cart_flow_scaling_weak_omp_iter}
+    \label{fig:cart_scaling_weak_flow_omp_iter}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{axis}
-      [ IterationBarPlot,
-        symbolic x coords = {1,2,4,8,16,32,64},
-        xtick = {1,2,4,8,16,32,64},
-        xlabel = {Number of nodes} ]
-      \addplot+[draw=blue]
-               table[x=ranks, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
-      \addlegendentry{Multiscale}
-      \addplot+[draw=red]
-               table[x=ranks, y=num_iter_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
-      \addlegendentry{AMG}
-    \end{axis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/mpi_iter}
+    \input{figs/Cart/scaling/weak/flow/mpi_iter.tex}
     \caption{}
-    \label{fig:cart_flow_scaling_weak_mpi_iter}
+    \label{fig:cart_scaling_weak_flow_mpi_iter}
   \end{subfigure}
   \par\bigskip 
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{loglogaxis}
-      [ WeakScalingTimePlot,
-        xlabel = {Number of cores},
-        ymax = 10,
-        log basis x={2} ]
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
-      \addlegendentry{MS setup}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
-      \addlegendentry{AMG setup}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
-      \addlegendentry{MS solve}
-      \addplot+[solid, very thick]
-               table[x=cores, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
-      \addlegendentry{AMG solve}
-%      \addplot+[solid, very thick]
-%               table[x=cores, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/omp/results.csv};
-%      \addlegendentry{MS total}
-%      \addplot+[solid, very thick]
-%               table[x=cores, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/omp/results.csv};
-%      \addlegendentry{AMG total}
-    \end{loglogaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/omp_time}
+    \input{figs/Cart/scaling/weak/flow/omp_time.tex}
     \caption{}
-    \label{fig:cart_flow_scaling_weak_omp_time}
+    \label{fig:cart_scaling_weak_flow_omp_time}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \begin{tikzpicture}
-    \begin{loglogaxis}
-      [ WeakScalingTimePlot,
-        xlabel = {Number of cores},
-        ymax = 10,
-        log basis x={2} ]
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
-      \addlegendentry{MS setup}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_setup_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
-      \addlegendentry{AMG setup}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
-      \addlegendentry{MS solve}
-      \addplot+[solid, very thick]
-               table[x=ranks, y=t_solve_avg]
-               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
-      \addlegendentry{AMG solve}
-%      \addplot+[solid, very thick]
-%               table[x=ranks, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/flow/ms/mpi/results.csv};
-%      \addlegendentry{MS total}
-%      \addplot+[solid, very thick]
-%               table[x=ranks, y=t_total_avg]
-%               {./results/quartz/hypre/scaling/weak/Cart/flow/amg/mpi/results.csv};
-%      \addlegendentry{AMG total}
-    \end{loglogaxis}
-    \end{tikzpicture}
+    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/mpi_time}
+    \input{figs/Cart/scaling/weak/flow/mpi_time.tex}
     \caption{}
-    \label{fig:cart_flow_scaling_weak_mpi_time}
+    \label{fig:cart_scaling_weak_flow_mpi_time}
   \end{subfigure}
   \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
-  \label{fig:cart_flow_scaling_weak}
+  \label{fig:cart_scaling_weak_flow}
 \end{figure}
 
 \subsection{Optimal Parameters Choices}

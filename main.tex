@@ -78,11 +78,21 @@
 \DeclareMathOperator{\Nnz}{nnz}
 \DeclareMathOperator{\Mean}{mean}
 
-\newcommand{\Colorcircle}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
-\newcommand{\Colorsquare}[1]{\protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
+\newcommand{\Colorcircle}[1]{\tikzset{external/export next=false} \protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
+\newcommand{\Colorsquare}[1]{\tikzset{external/export next=false} \protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
 
 % reading csv files by default
 \pgfplotstableset{col sep=comma}
+
+% Setup tikz/external to produce separate figure pdfs
+\usepgfplotslibrary{external}
+\tikzexternalize
+\tikzset{external/up to date check=simple}
+
+% COMMENT THIS OUT FOR FAST BUILD OR ON OVERLEAF
+% UNCOMMENT THIS TO FORCE FIGURE GENERATION
+% In parcular, if any changes to source data or plot styles are made
+% \tikzset{external/force remake}
 
 % pgfplots styles
 
