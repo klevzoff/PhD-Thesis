@@ -304,25 +304,35 @@ Assuming $LU$ factorization with pivoting and fill-minimizing reordering is used
 \section{Numerical Results}
 \label{sec:par_results}
 
-In this section we present several numerical examples that investigate robustness and parallel scalability of the multiscale preconditioner implemented in GEOSX on multi-core and multi-node architectures.   We also look at relative costs of different kernels of the setup stage in an optimized implementation.   Some comparisons with a state-of-the art classical multigrid solver are provided to validate the observed performance of the method.
+In this section we present several numerical examples that investigate robustness and parallel scalability of the multiscale preconditioner implemented in GEOSX on multi-core and multi-node architectures.   Some comparisons with a state-of-the art classical multigrid solver are provided to validate the observed performance of the method.   We also investigate optimal choices for several tuning parameters of the multiscale methods, as well as varous combinations of mutliscale and multigrd solvers.
 
 \subsection{Test Cases Setup}
 
 \subsubsection{Computational Platform}
 
-\paragraph{Hardware specifications} All tests are run on Stanford Computation Earth and Environmental Sciences (CEES) Mazama HPC cluster, consisting of up to 150 compute nodes connected with a Mellanox Infiniband FDR (56 Gb/s) interconnect.   Each node features 64 GB of DDR4 RAM and dual-socket Intel\textsuperscript{\tiny\textregistered} Xeon\textsuperscript{\tiny\textregistered} E5-2670 v3 (Haswell microarchitecture) CPU with 30 MB of shared L3 cache and 12 cores per socket operating at \qty{2.3}{\GHz}, each with 256 KB L2 cache and 32 KB L1 data and instruction caches.   The cores support superscalar execution and AVX2 SIMD instruction set.
+\paragraph{Hardware specifications} 
+We have used two high-performance computing clusters:
+\begin{itemize}
+\item Scaling studies were performed on Lawrence Livermore National Laboratory's Quartz cluster consisting of 3,072 nodes with Intel\textsuperscript{\tiny\textregistered} Omni-Path interconnect (up to 100 Gbps).   Each node includes \qty{128}{\mega\byte} of DDR4 RAM and a dual-socket Intel\Registered Xeon\Registered E5-2696 v4 (Broadwell) CPU with \qty{45}{\mega\byte} shared L3 cache and 18 cores per socket running at \qty{2.1}{\GHz} with \qty{256}{\kilo\byte} L2 cache and \qty{64}{\kilo\byte} L1 data and instruction caches and AVX instruction set support.
+\item All other tests were run on Stanford Computation Earth and Environmental Sciences (CEES) Mazama HPC cluster, consisting of 150 compute nodes connected with a Mellanox Infiniband FDR (up to 56 Gbps) interconnect.   Each node features \qty{64}{\giga\byte} of DDR4 RAM and dual-socket Intel\Registered Xeon\Registered E5-2670 v3 (Haswell) CPU with \qty{30}{\mega\byte} of shared L3 cache and 12 cores per socket operating at \qty{2.3}{\GHz}, each with \qty{256}{\kilo\byte} L2 cache, \qty{32}{\kilo\byte} L1 caches and AVX2 support.
+\end{itemize}
+Hyperthreading us supported by both CPU types, but was not used in the tests.   For consistency and comparison purposes, we used the same maximum number of cores per node (24) on both platforms.
 
 \paragraph{Software configuration}
-The nodes are running a 64-bit CentOS 7.9 with Linux Kernel 3.10.   GEOSX is compiled with GNU C++ Compiler 8.3.0 with \texttt{-O3} optimization level and OpenMP support and linked with Open MPI 3.1.4, METIS 5.1.0, SuperLU\_DIST 6.2.0 and SuiteSparse 5.10.1.   We use \textit{hypre} 2.24.0 \cite{hypre} as the linear algebra backend and BoomerAMG \cite{Henson2002} as the reference classical multigrid preconditioner.    
-
-\paragraph{AMG setup}
-BoomerAMG is configured to employ a single V-cycle with one sweep of the same pre- and post-smoother used in our multiscale solver ($\ell_1$ hybrid symmetric Gauss-Seidel).   Other settings include HMIS coarsening, ''extended+i'' interpolation and a direct solver at the coarsest level (set to have a maximum size of 9).   For mechanics problem, we additionally set the connection strength threshold to a recommended value of 0.8 (default is 0.25 for scalar equations) and instruct the solver to use systems variant with 3 functions (PDEs) per point.
+In all cases the software are running a 64-bit OS based on Linux Kernel 3.10.   All software is compiled with \texttt{-O3} optimization level and OpenMP support using
+\begin{itemize}
+\item Clang 10.0.0 and MVAPICH2 2.3 on LLNL/Quartz
+\item GNU C++ Compiler 8.3.0 and Open MPI 3.1.4 on CEES/Mazama
+\end{itemize} 
+and linked with METIS 5.1.0, and SuiteSparse 5.10.1, as well as \textit{hypre} 2.24.0 used as the default linear algebra backend and BoomerAMG \cite{Henson2002} as the reference classical multigrid preconditioner.
 
 \subsubsection{Common Settings}
 
-Similar to the examples presented in \cref{sec:msrsb_examples}, we define three types of problems on each model (geomechanics, single-phase flow and coupled poromechanics) using finite element discretization for mechanics and TPFA finite volume for flow.   Solid skeleton is assumed to be isotropic linear elastic with incompressible grains, while a bulk rock compressibility coefficient of $c_r = \qty{1e-9}{\Pa^{-1}}$ is used in the flow problem.   Fluid is also assumed to have constant compressibility of $c_f = \qty{5e-10}{Pa^{-1}}$, viscosity $\mu = \qty{1e-3}{Pa.s}$ and density $\rho_f = \qty{1000}{kg/m^3}$, while gravity is neglected.   The resulting flow and poromechanical problems are time-dependent and mildly nonlinear, while geomechanical problem is linear and quasi steady-state (with time-dependent boundary conditions).
+Similar to the examples presented in \cref{sec:msrsb_examples}, we define three types of problems on each model (geomechanics, single-phase flow and coupled poromechanics) using finite element discretization for mechanics and TPFA finite volume for flow.   Solid skeleton is assumed to be isotropic linear elastic with incompressible grains, while a bulk rock compressibility coefficient of $c_r = \qty{1e-9}{\Pa^{-1}}$ is used in the flow problem.   Fluid is also assumed to have constant compressibility of $c_f = \qty{5e-10}{Pa^{-1}}$, viscosity $\mu = \qty{1e-3}{Pa.s}$ and density $\rho_f = \qty{1000}{kg/m^3}$, while gravity is neglected.   The resulting flow and poromechanical problems are time-dependent and mildly nonlinear, while geomechanical problem is linear and quasi steady-state (with time-dependent boundary conditions).   In all cases, we run each problem for 10 time steps and average performance metrics (iterations and timings) over the steps.   In the context of time-dependent problems an expensive part of multiscale setup (coarsening and construction of the grid hierarchy, as well as initial convergence of the basis functions) is amortized across many time steps, while a small number of additional smoothing iterations are sufficient to evolve the grid transfer operators as system matrix changes in the course of the simulation.   Since the problems considered here do not produce symmetric matrices (in case of mechanics, due to non-symmetric treatment of Dirichlet boundary conditions in GEOSX), we use right-preconditioned GMRES as the iterative solver with a convergence tolerance of $\varepsilon_r = \num{1e-8}$.
 
-In all cases, we run each problem for 10 time steps and average performance metrics (iterations and timings) over the steps.   In the context of time-dependent problems an expensive part of multiscale setup (coarsening and construction of the grid hierarchy, as well as initial convergence of the basis functions) is amortized across many time steps, while a small number of additional smoothing iterations are sufficient to evolve the grid transfer operators as system matrix changes in the course of the simulation.   In addition, in order to optimize the setup cost, we use a relaxed tolerance of $\varepsilon_{\text{sm}} = \num{1e-1}$ as convergence criteria for basis functions and limit the number of smoothing iterations to 20.   Since the problems considered here do not produce symmetric matrices (in case of mechanics, due to non-symmetric treatment of Dirichlet boundary conditions in GEOSX), we use right-preconditioned GMRES as the iterative solver with a convergence tolerance of $\varepsilon_r = \num{1e-8}$.
+Unless specified otherwise, the multiscale solver is set up to use a single sweep of $\ell_1$ hybrid symmetric Gauss-Seidel as both pre- and post-smoother at every level, and to truncate the grid hierarchy until a target coarse problem size of 4K degrees-of-freedom is reached.   The coarse system is collected and solved on a single rank using UMFPACK direct solver from SuiteSparse library.   We found this approach to perform slightly better for the target coarse problem size compared to open-source direct sparse solvers.   In order to optimize the setup cost, we use a relaxed tolerance of $\varepsilon_{\text{sm}} = \num{1e-1}$ as termination criteria for the basis function computation and limit the number of smoothing iterations to 20; in practice these settings are sufficient to achieve a near-optimal convergence rate.
+
+BoomerAMG is configured to employ a single V-cycle with the same pre- and post-smoother ($\ell_1$ hybrid symmetric Gauss-Seidel).   Other choices include HMIS coarsening, ''extended+i'' interpolation and a direct solver at the coarsest level (set to have a maximum size of 9), which all correpond to BoomerAMG's default settings.   For mechanics problem, we additionally set the connection strength threshold to a recommended value of 0.8 (default is 0.25 for scalar equations) and instruct the solver to use systems variant with 3 functions (PDEs) per point.
 
 Since a black-box AMG solver cannot be applied to the coupled system directly due to lack of convergence, when comparing multiscale with AMG for the poromechanical problems we employ fixed-stress block-triangular preconditioner described in \cref{subsubsec:geosx_block_precond} with two separate AMG instances as $M_1^{-1}$ and $M_2^{-1}$.   Note that this approach is mostly identical to the one employed in \textit{hypre}'s MGR solver \cite{Bui2020} for single-phase poromechanics (and in our tests they showed similar performance), but using the block preconditioner template enables us to easily test different combinations of AMG and multiscale sub-block solvers within the same computational framework.
 
@@ -340,7 +350,7 @@ A heterogeneous Young's modulus distribution is prescribed using the log-permeab
 The setup consists of a combination of flow and mechanics problems, ignoring the prescribed traction and using only the pressure gradient from wells to drive both flow and solid deformation.
 
 \paragraph{Multiscale settings}
-Structured coarsening is used in the multiscale solver to generate a hierarchy of Cartesian coarse grids, with a default coarsening ratio of $C_r = \numproduct{5x5x5}$.   In addition, to overcome challenges associated with anisotropy, we employ semi-coarsening in the $z$ direction until each process has no more than a single coarse cell layer.   In distributed memory experiments, parallel partitioning of the domain is also structured, with processes arranged in a Cartesian grid of as even shape as possible.
+Structured coarsening is used in the multiscale solver to generate a hierarchy of Cartesian coarse grids, with a default coarsening ratio of $C_r = \numproduct{5x5x5}$ (unless noted otherwise).   In addition, to overcome challenges associated with anisotropy, we employ semi-coarsening in the $z$ direction until each process has no more than a single coarse cell layer.   In distributed memory experiments, parallel partitioning of the domain is also structured, with processes arranged in a Cartesian grid of as even shape as possible.
 
 \begin{figure} [htbp]
     \begin{subfigure}{0.48\textwidth}
@@ -410,7 +420,7 @@ Once again the log-permeability correlation \cref{eq:young_perm_correlation}, is
 As before, we combine the flow the geomechanics problems and ignore the prescribed traction. 
 
 \paragraph{Multiscale settings}
-In distributed memory runs the mesh is partitioned across processes by calling ParMETIS on a cell connectivity graph.   A hierarchy of coarse grids is then generated by employing METIS locally within each process with a default coarsening ration of $C_r = 512$ for both flow and mechanics.   The coarsening is stopped when a target global size of 4000 degrees-of-freedom is reached.
+In distributed memory runs the mesh is partitioned across processes by calling ParMETIS on a cell connectivity graph.   A hierarchy of coarse grids is then generated by employing METIS locally within each process with a default coarsening ratio of $C_r = 512$ for both flow and mechanics.
 
 \begin{table}
     \centering
@@ -495,6 +505,7 @@ In distributed memory runs the mesh is partitioned across processes by calling P
 \end{figure}
 
 \subsection{Weak Scaling}
+\label{subsec:par_scaling_weak}
 
 We first consider a series of weak scaling experiments, in which the number of processing units (CPU cores) is increased while keeping the workload (measured in degrees-of-freedom) per core constant.   We will separately consider shared memory (multicore) scaling within a single compute node, and distributed memory (multi-node) scaling in which every parallel process is using all available cores on a single node, looking at both algorithmic (iterations) and implementation (timing) scalability.   Ideal weak scaling implies both number of iterations and time remain constant as the problem is scaled up, however it is almost never achieved in practice due to hardware constraints (communication and memory bandwidth/latencies).   Parallel efficiency in weak scaling studies is defined as the ratio of serial (singe-core or single-node) to parallel execution time.   To put the results for out multiscale (MS) implementation into context, we compare them to a classical algebraic multigrid (AMG) solver from \textit{hypre} package. 
 
@@ -510,34 +521,25 @@ The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/mech/omp_iter}
     \input{figs/Cart/scaling/weak/mech/omp_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_mech_omp_iter}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_iter}
-    \input{figs/Cart/scaling/weak/mech/mpi_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_mech_mpi_iter}
-  \end{subfigure}
-  \par\bigskip 
-  \begin{subfigure}[t]{0.48\textwidth}
-    \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/mech/omp_time}
     \input{figs/Cart/scaling/weak/mech/omp_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_mech_omp_time}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_iter}
+    \input{figs/Cart/scaling/weak/mech/mpi_iter.tex}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_time}
     \input{figs/Cart/scaling/weak/mech/mpi_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_mech_mpi_time}
   \end{subfigure}
-  \caption[3D Cartesian geomechanics example weak scaling]{3D Cartesian geomechanics example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
+  \caption[3D Cartesian geomechanics example weak scaling]{3D Cartesian geomechanics example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
   \label{fig:cart_scaling_weak_mech}
 \end{figure}
 
@@ -549,34 +551,25 @@ The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in 
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/flow/omp_iter}
     \input{figs/Cart/scaling/weak/flow/omp_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_flow_omp_iter}
   \end{subfigure}
   \hfill
+   \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/omp_time}
+    \input{figs/Cart/scaling/weak/flow/omp_time.tex}
+  \end{subfigure}
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/flow/mpi_iter}
     \input{figs/Cart/scaling/weak/flow/mpi_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_flow_mpi_iter}
-  \end{subfigure}
-  \par\bigskip 
-  \begin{subfigure}[t]{0.48\textwidth}
-    \centering
-    \tikzsetnextfilename{figs/Cart/scaling/weak/flow/omp_time}
-    \input{figs/Cart/scaling/weak/flow/omp_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_flow_omp_time}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/flow/mpi_time}
     \input{figs/Cart/scaling/weak/flow/mpi_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_flow_mpi_time}
   \end{subfigure}
-  \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
+  \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
   \label{fig:cart_scaling_weak_flow}
 \end{figure}
 
@@ -588,38 +581,186 @@ The problem size is approximately 180k DoF/core in multicore and 58k DoF/core in
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/poro/omp_iter}
     \input{figs/Cart/scaling/weak/poro/omp_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_poro_omp_iter}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_iter}
-    \input{figs/Cart/scaling/weak/poro/mpi_iter.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_poro_mpi_iter}
-  \end{subfigure}
-  \par\bigskip 
-  \begin{subfigure}[t]{0.48\textwidth}
-    \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/poro/omp_time}
     \input{figs/Cart/scaling/weak/poro/omp_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_poro_omp_time}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_iter}
+    \input{figs/Cart/scaling/weak/poro/mpi_iter.tex}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
     \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_time}
     \input{figs/Cart/scaling/weak/poro/mpi_time.tex}
-    \caption{}
-    \label{fig:cart_scaling_weak_poro_mpi_time}
   \end{subfigure}
-  \caption[3D Cartesian poromechanics example weak scaling]{3D Cartesian poromechanics example weak scaling: iterations and setup/solve times for multicore (a,c) and multi-node (b,d) parallelization.}
+  \caption[3D Cartesian poromechanics example weak scaling]{3D Cartesian poromechanics example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (top) parallelization.}
   \label{fig:cart_scaling_weak_poro}
 \end{figure}
 
+\subsection{Strong Scaling}
+\label{subsec:par_scaling_strong}
 
+Next we consider strong scaling experiments, in which additional computational power is added to a fixed problem size leading to a reduction in solution time.   Measure of parallel efficiency here is the ratio of the ''ideal'' time (i.e. single core/node time divided by the number of cores/nodes used assuming perfect scaling) to achieved time.   It begins to drop as more processors are added and problem size per processing unit decreases, leading to less effective utilization of compute resources.    We will once again consider separate multicore and multi-node scaling separately, choose an appropriate problem size(s) for each and compare the results to those of classical AMG.
+
+\subsubsection{Test Case 1}
+Two mesh resolutions are used for each of the two scaling studies: \numproduct{100x100x100} (3.1M DoF) and \numproduct{140x140x140} (8.4M DoF) for multicore tests; \numproduct{200x200x200} (24.3M DoF) and \numproduct{280x280x280} (66.5M DoF) for multi-node tests.   Because of constraints imposed by GEOSX's memory footprint, some of the higher-resolution models could only be run on a larger number of cluster nodes.
+
+\paragraph{Geomechanics}
+The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe that MS solver achieves strong scalability that is comparable to that of AMG, in particular scaling is observed on up to 16 cores on a single node and up to 32 and 64 nodes, respectively, in distributed memory setting.   Although direct timing comparison is not the goal here, we note that for all runs MS tends to be on par or up to 1.5x faster than AMG for the mechanics problem.   The reason for that is that multiscale solver is able to achieve essentially the same convergence rate as AMG with a much shallower grid hierarchy, while simultaneously avoiding the growth of stencil size (numer of nonzeros per row), as evident from \cref{fig:cart_grid_hiearchies} which lists the grid dimensions across levels for both multilevel solvers for the largest grid resolution.   AMG solvers support aggressive coarsening strategies, but they typically lead to a reduction of convergence rate, and in our experiments did not yield significant advantages.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/omp_100x100x100_time}
+    \input{figs/Cart/scaling/strong/mech/omp_100x100x100_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    %\remake
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/omp_140x140x140_time}
+    \input{figs/Cart/scaling/strong/mech/omp_140x140x140_time.tex}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_200x200x200_time}
+    \input{figs/Cart/scaling/strong/mech/mpi_200x200x200_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_280x280x280_time}
+    \input{figs/Cart/scaling/strong/mech/mpi_280x280x280_time.tex}
+  \end{subfigure}
+  \caption[3D Cartesian geomechanics example strong scaling]{3D Cartesian geomechanics example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \label{fig:cart_scaling_strong_mech}
+\end{figure}
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{rrrrr}
+      \hline\noalign{\smallskip}
+      $\ell$ & \# DoF & \# nonzeros & $C_s^l$ & $C_r^l$ \\
+      \hline\noalign{\smallskip}
+		   0 & 66,564,123 & 5,353,409,889 &  80.4 & --- \\
+		   1 & 32,950,998 & 2,770,482,008 &  84.1 & 2.0 \\
+		   2 & 16,009,321 & 1,348,023,887 &  84.2 & 2.1 \\
+		   3 &  7,675,409 &   661,593,661 &  86.2 & 2.1 \\
+		   4 &  3,511,002 &   390,797,852 & 111.3 & 2.2 \\
+		   5 &  1,178,793 &   232,042,551 & 196.8 & 3.0 \\
+		   6 &    338,575 &    71,896,027 & 212.3 & 3.5 \\
+		   7 &     74,055 &    13,005,111 & 175.6 & 4.6 \\
+		   8 &     14,819 &     2,053,237 & 138.6 & 5.0 \\
+		   9 &      3,265 &       344,637 & 105.6 & 4.5 \\
+		  10 &        771 &        54,529 &  70.7 & 4.2 \\
+		  11 &        204 &         8,684 &  42.6 & 3.8 \\
+		  12 &         66 &         1,888 &  28.6 & 3.1 \\
+		  13 &         10 &            96 &   9.6 & 6.6 \\
+		  14 &          3 &             9 &   3.0 & 3.3 \\
+      \hline\noalign{\smallskip}
+    \end{tabular}
+    \caption{AMG grid hierarchy}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \footnotesize
+    \begin{tabular}{rrrrr}
+      \hline\noalign{\smallskip}
+      $\ell$ & \# DoF & \# nonzeros & $C_s^l$ & $C_r^l$ \\
+      \hline\noalign{\smallskip}
+			0 & 66,564,123 & 5,353,409,889 & 80.4 &  --- \\
+			1 & 13,502,331 & 1,075,774,401 & 79.7 &  4.9 \\
+			2 &  3,079,479 &   235,524,573 & 76.5 &  4.4 \\
+			3 &  1,184,415 &    82,751,877 & 69.9 &  2.6 \\
+			4 &     48,735 &     3,341,637 & 68.6 & 24.3 \\
+			5 &      2,535 &       160,173 & 63.2 & 19.2 \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+			                                             \\
+      \hline\noalign{\smallskip}
+    \end{tabular}
+    \caption{MS grid hierarchy}
+  \end{subfigure}
+  \caption[3D Cartesian geomechanics example grid hierarchies]{3D Cartesian geomechanics example grid hierarchies for the \numproduct{280x280x280} grid.   $C_s^l$ is the average stencil (number of nonzeros per matrix row) and $C_r^l$ is the coarsening ratio at level $l$.}
+  \label{fig:cart_grid_hiearchies}
+\end{figure}
+
+\paragraph{Flow}
+The timings for this problem are presented in \cref{fig:cart_scaling_strong_flow}.   For multicore tests, scaling up to 8 cores is observed, with no further improvement going up the the full 24 cores.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/flow/omp_100x100x100_time}
+    \input{figs/Cart/scaling/strong/flow/omp_100x100x100_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/flow/omp_140x140x140_time}
+    \input{figs/Cart/scaling/strong/flow/omp_140x140x140_time.tex}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/flow/mpi_200x200x200_time}
+    \input{figs/Cart/scaling/strong/flow/mpi_200x200x200_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/flow/mpi_280x280x280_time}
+    \input{figs/Cart/scaling/strong/flow/mpi_280x280x280_time.tex}
+  \end{subfigure}
+  \caption[3D Cartesian single-phase flow example strong scaling]{3D Cartesian single-phase flow example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \label{fig:cart_scaling_strong_flow}
+\end{figure}
+
+\paragraph{Poromechanics}
+The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro}.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/poro/omp_100x100x100_time}
+    \input{figs/Cart/scaling/strong/poro/omp_100x100x100_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    %\remake
+    \tikzsetnextfilename{figs/Cart/scaling/strong/poro/omp_140x140x140_time}
+    \input{figs/Cart/scaling/strong/poro/omp_140x140x140_time.tex}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/poro/mpi_200x200x200_time}
+    \input{figs/Cart/scaling/strong/poro/mpi_200x200x200_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \remake
+    \tikzsetnextfilename{figs/Cart/scaling/strong/poro/mpi_280x280x280_time}
+    \input{figs/Cart/scaling/strong/poro/mpi_280x280x280_time.tex}
+  \end{subfigure}
+  \caption[3D Cartesian poromechanics example strong scaling]{3D Cartesian poromechanics example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \label{fig:cart_scaling_strong_poro}
+\end{figure}
 
 \subsection{Optimal Parameters Choices}
 

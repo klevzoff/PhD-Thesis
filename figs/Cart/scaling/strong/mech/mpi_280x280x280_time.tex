@@ -1,0 +1,29 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ StrongScalingTimeBarPlot,
+        symbolic x coords = {1,2,4,8,16,32,64},
+        xtick = {1,2,4,8,16,32,64},
+        xmin = 1, xmax = 64,
+        enlarge x limits = 0.1,
+        legend pos = north west,
+        title = {\numproduct{280x280x280} grid},
+        xlabel = {Number of nodes} ]
+      \addplot+[bar shift=-4pt]
+               table[x=ranks, y=t_setup_avg]
+               {results/quartz/hypre/scaling/strong/Cart/mech/ms/mpi/280x280x280/results.csv};
+      \addlegendentry{MS setup}
+      \addplot+[bar shift=-4pt]
+               table[x=ranks, y=t_solve_avg]
+               {results/quartz/hypre/scaling/strong/Cart/mech/ms/mpi/280x280x280/results.csv};
+      \addlegendentry{MS solve}
+      \resetstackedplots
+      \addplot+[bar shift=4pt]
+               table[x=ranks, y=t_setup_avg]
+               {results/quartz/hypre/scaling/strong/Cart/mech/amg/mpi/280x280x280/results.csv};
+      \addlegendentry{AMG setup}
+      \addplot+[bar shift=4pt]
+               table[x=ranks, y=t_solve_avg]
+               {results/quartz/hypre/scaling/strong/Cart/mech/amg/mpi/280x280x280/results.csv};
+      \addlegendentry{AMG solve}
+    \end{axis}
+\end{tikzpicture}

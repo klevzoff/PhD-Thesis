@@ -1,0 +1,26 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ StrongScalingTimeBarPlot,
+        symbolic x coords = {1,2,4,8,16,24},
+        xtick = {1,2,4,8,16,24},
+        title = {\numproduct{100x100x100} grid},
+        xlabel = {Number of cores} ]
+      \addplot+[bar shift=-4pt]
+               table[x=cores, y=t_setup_avg]
+               {results/quartz/hypre/scaling/strong/Cart/flow/ms/omp/100x100x100/results.csv};
+      \addlegendentry{MS setup}
+      \addplot+[bar shift=-4pt]
+               table[x=cores, y=t_solve_avg]
+               {results/quartz/hypre/scaling/strong/Cart/flow/ms/omp/100x100x100/results.csv};
+      \addlegendentry{MS solve}
+      \resetstackedplots
+      \addplot+[bar shift=4pt]
+               table[x=cores, y=t_setup_avg]
+               {results/quartz/hypre/scaling/strong/Cart/flow/amg/omp/100x100x100/results.csv};
+      \addlegendentry{AMG setup}
+      \addplot+[bar shift=4pt]
+               table[x=cores, y=t_solve_avg]
+               {results/quartz/hypre/scaling/strong/Cart/flow/amg/omp/100x100x100/results.csv};
+      \addlegendentry{AMG solve}
+    \end{axis}
+\end{tikzpicture}

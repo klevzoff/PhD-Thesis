@@ -78,6 +78,8 @@
 \DeclareMathOperator{\Nnz}{nnz}
 \DeclareMathOperator{\Mean}{mean}
 
+\newcommand{\Registered}{\textsuperscript{\tiny\textregistered}}
+
 \newcommand{\Colorcircle}[1]{\tikzset{external/export next=false} \protect\tikz\protect\draw[black,fill=#1] (0,0) circle (.5ex);}
 \newcommand{\Colorsquare}[1]{\tikzset{external/export next=false} \protect\tikz\protect\draw[black,fill=#1] (0,0) rectangle (1ex,1ex);}
 
@@ -149,6 +151,33 @@
         legend style = {font=\footnotesize}
     }
 }
+
+\pgfplotsset{
+    StrongScalingTimeBarPlot/.style = {
+        width = \textwidth,
+        height = \textwidth,
+        ybar stacked,
+        ymajorgrids,
+        ymin = 0,
+        major grid style = {very thin, draw=gray!50},
+        ylabel = {Time (s)},
+        xtick = data,
+        tick style={draw=none},
+        bar width = 5pt,
+        legend pos = north east,
+        legend cell align = {left},
+        legend style = {font = \footnotesize}
+    }
+}
+
+% Command needed to make grouped stacked bar charts
+\makeatletter
+\newcommand{\resetstackedplots}{
+\makeatletter
+\pgfplots@stacked@isfirstplottrue
+\makeatother
+}
+\makeatother
 
 % Basic thesis information
 \dept{Energy Resources Engineering}
