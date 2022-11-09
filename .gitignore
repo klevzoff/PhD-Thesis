@@ -1,7 +1,7 @@
-_minted-main/
-build/
-results/
-main.pdf
+_minted-*
+build
+results
+thesis.pdf
 *.aux
 *.bbl
 *.blg
