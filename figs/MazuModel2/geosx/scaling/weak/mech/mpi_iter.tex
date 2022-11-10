@@ -1,0 +1,17 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ IterationBarPlot,
+        symbolic x coords = {1,8,64},
+        xtick = {1,8,64},
+        ymax = 100,
+        xlabel = {Number of nodes} ]
+      \addplot+[draw=blue]
+               table[x=ranks, y=num_iter_avg]
+               {results/quartz/hypre/scaling/weak/MazuModel2/mech/ms/mpi/results.csv};
+      \addlegendentry{MS}
+      \addplot+[draw=red]
+               table[x=ranks, y=num_iter_avg]
+               {results/quartz/hypre/scaling/weak/MazuModel2/mech/amg/mpi/results.csv};
+      \addlegendentry{AMG}
+    \end{axis}
+\end{tikzpicture}

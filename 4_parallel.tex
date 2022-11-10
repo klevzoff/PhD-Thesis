@@ -341,7 +341,7 @@ Since a black-box AMG solver cannot be applied to the coupled system directly du
 The first test represents a \qtyproduct{1x1x0.1}{\km} domain that is discretized with a Cartesian grid using an equal number of cells in $x$, $y$ and $z$ directions, which creates an anisotropy factor of 10 between horizontal and vertical cell dimensions.   This geometric anisotropy is typical in subsurface modeling where grids are highly resolved in the vertical direction, and must be handled robustly by the solver.   Grid resolution levels and corresponding problem sizes are summarized in \cref{tab:cart_dims}.   The time step size for all three problems is chosen to be $\Delta t = \qty{1e5}{s}$.
 
 \paragraph{Flow}
-We employ sequential Gaussian simulation to generate a high-resolution geostatistical horizontal permeability field realization spanning over 4 orders of magnitude and map it onto each computational grid using nearest point interpolation. The result for a \numproduct{70x70x70} grid is shown shown in \cref{fig:cart_perm}.   Vertical permeability $k_z$ is obtained by multiplying $k_x$ by an material anisotropy factor set to a default value of \num{1e-2}.   The total numerical anisotropy for this problem is thus \num{1e-1}.    Reference porosity is constant and equal to 0.2 everywhere.   Domain boundaries are no-flow and two wells in opposing corners of the domain completed in layers 2 and 4 (out of 5 equally sized horizontal layers)  impose a varying in time pressure gradient, with producing well set to constant pressure of \qty{10}{\MPa} and injector operating at a constant mass rate of \qty{10}{kg/s}.
+We employ sequential Gaussian simulation to generate a high-resolution geostatistical horizontal permeability field realization spanning over 4 orders of magnitude and map it onto each computational grid using nearest point interpolation.   This approach avoids a numerical homogenization of the problem which would happen during piecewise constant refinement of a lower-resolution field and preserves the sharp material contrasts.   The result is shown shown in \cref{fig:cart_perm} for a \numproduct{70x70x70} grid.   Vertical permeability $k_z$ is obtained by multiplying $k_x$ by an material anisotropy factor set to a default value of \num{1e-2}.   Reference porosity is constant and equal to 0.2 everywhere.   Domain boundaries are no-flow and two wells in opposing corners of the domain completed in layers 2 and 4 (out of 5 equally sized horizontal layers)  impose a varying in time pressure gradient, with producing well set to constant pressure of \qty{10}{\MPa} and injector operating at a constant mass rate of \qty{10}{kg/s}.
 
 \paragraph{Geomechanics}
 A heterogeneous Young's modulus distribution is prescribed using the log-permeability correlation \cref{eq:young_perm_correlation} with $\bar{E} = \qty{5}{\GPa}$ and $E_{\max} = 1.5 \bar{E} = \qty{7.5}{\GPa}$, shown in \cref{fig:cart_young}.   Boundary conditions consist of the usual constrained normal displacement on the bottom and side surfaces; in addition, normal traction of $t_z = -\qty{10}{\MPa}$ (with linear ramp-up as a function of time) is prescribed on the top surface, resulting in a displacement profile that is mostly vertical with small lateral deformation due to material heterogeneity, as shown in \cref{fig:cart_mech_sketch}.
@@ -376,13 +376,13 @@ Structured coarsening is used in the multiscale solver to generate a hierarchy o
 	    \caption{Permeability $k_x$ [\unit{m^2}]}
         \label{fig:cart_perm}
     \end{subfigure}
-    \caption[3D Cartesian test case]{3D Cartesian test case: mechanics (a) and flow (b) problem setup and solution at $t = \qty{1e6}{s}$, material properties (c,d).}
+    \caption[Test case 1 setup]{Test case 1: mechanics (a) and flow (b) problem setup and solution at $t = \qty{1e6}{s}$, material properties (c,d).}
     \label{fig:cart_setup}
 \end{figure}
 
 \begin{table}
     \centering
-    \caption[3D Cartesian problem sizes]{3D Cartesian test case: grid resolution levels and corresponding problem sizes}
+    \caption[Test case 1 grid and problem sizes]{Test case 1: grid resolution levels and corresponding problem sizes}
     \label{tab:cart_dims}
     \begin{tabular}{crrrr}
       \hline\noalign{\smallskip}
@@ -424,7 +424,7 @@ In distributed memory runs the mesh is partitioned across processes by calling P
 
 \begin{table}
     \centering
-    \caption[3D unstructured reservoir problem sizes]{3D unstructured reservoir test case: grid resolution levels and corresponding problem sizes}
+    \caption[Test case 2 grid and problem sizes]{Test case 2: grid resolution levels and corresponding problem sizes}
     \label{tab:mazumodel2_par_dims}
     \begin{tabular}{crrrr}
       \hline\noalign{\smallskip}
@@ -500,7 +500,7 @@ In distributed memory runs the mesh is partitioned across processes by calling P
     {
         \includegraphics[width=\linewidth]{figs/MazuModel2/geosx/poro_sol_z}
     }
-    \caption[3D synthetic reservoir test case setup]{3D synthetic reservoir test case setup and solution after 10 time steps (at $t = \qty{1e7}{s})$ for the coupled poromechanics problem.}
+    \caption[Test case 2 setup]{Test case 2 setup and solution after 10 time steps (at $t = \qty{1e7}{s})$ for the coupled poromechanics problem.}
     \label{fig:mazumodel2_geosx_setup}
 \end{figure}
 
@@ -511,7 +511,7 @@ We first consider a series of weak scaling experiments, in which the number of p
 
 \subsubsection{Test Case 1}
 
-For all three problems we use a series of grid resolutions (see \cref{tab:cart_dims}) from \numproduct{35x35x35} (1 core) to \numproduct{100x100x100} (24 cores) for multicore tests and from \numproduct{70x70x70} (1 node) to \numproduct{280x280x280} (64 nodes) for multi-node tests.   
+For all three problems we use a series of grid resolutions (see \cref{tab:cart_dims}) from \numproduct{35x35x35} (1 core) to \numproduct{100x100x100} (24 cores) for shared memory tests and from \numproduct{70x70x70} (1 node) to \numproduct{280x280x280} (64 nodes) for distributed memory tests.   
 
 \paragraph{Geomechanics}
 The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in multi-node runs.   Convergence and timing results are presented in \cref{fig:cart_scaling_weak_mech}.   The number of iterations is experiencing a limited growth (1.5--2x) that is similar between MS and AMG.   This is explained by a slight degradation of smoother strength that is known to occur for hybrid Gauss-Siedel (due to a reduction in the size of per-processor matrix block), which affects both methods equally.   The time scaling is also quite similar for both solvers, with multiscale taking a small lead on solution time.
@@ -539,7 +539,7 @@ The problem size is approximately 135k DoF/core in multicore and 44k DoF/core in
     \tikzsetnextfilename{figs/Cart/scaling/weak/mech/mpi_time}
     \input{figs/Cart/scaling/weak/mech/mpi_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian geomechanics example weak scaling]{3D Cartesian geomechanics example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \caption[Test case 1 geomechanics problem weak scaling]{Test case 1 geomechanics problem weak scaling: iterations and setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_weak_mech}
 \end{figure}
 
@@ -569,7 +569,7 @@ The problem size is approximately 43k DoF/core in multicore and 14k DoF/core in 
     \tikzsetnextfilename{figs/Cart/scaling/weak/flow/mpi_time}
     \input{figs/Cart/scaling/weak/flow/mpi_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian single-phase flow example weak scaling]{3D Cartesian single-phase flow example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \caption[Test case 1 single-phase flow problem weak scaling]{Test case 1 single-phase flow problem weak scaling: iterations and setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_weak_flow}
 \end{figure}
 
@@ -599,9 +599,70 @@ The problem size is approximately 180k DoF/core in multicore and 58k DoF/core in
     \tikzsetnextfilename{figs/Cart/scaling/weak/poro/mpi_time}
     \input{figs/Cart/scaling/weak/poro/mpi_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian poromechanics example weak scaling]{3D Cartesian poromechanics example weak scaling: iterations and setup/solve times for multicore (top) and multi-node (top) parallelization.}
+  \caption[Test case 1 poromechanics problem weak scaling]{Test case 1 poromechanics problem weak scaling: iterations and setup/solve times for multicore (top) and multi-node (top) parallelization.}
   \label{fig:cart_scaling_weak_poro}
 \end{figure}
+
+\subsubsection{Test Case 2}
+
+Since different mesh resolutions have a factor of 8 between their sizes, our ability to do weak scaling studies is limited.   In particular we will restrict this investigation to distributed memory setting only and use resolution levels 3, 4 and 5 (as listed in \cref{tab:mazumodel2_par_dims}) and run on 1, 8 and 64 cluster nodes, respectively.   The iteration counts and timings are presented in \cref{fig:mazumodel2_scaling_weak} for all three problem types.   Given the small number of data points in the experiment, the interpolated thrends should be interpreted with reasonable caution.   Nevertheless, we can make some conclusions about weak scaling.
+
+\begin{figure} [htbp]
+  \pgfplotsset{
+    every axis post/.append style = { 
+      height = 0.8\textwidth,
+      legend columns = 2,
+    },
+    IterationBarPlot/.append style = {
+      bar width = 10pt,
+      enlarge x limits = 0.3
+    },
+  }
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/mech/mpi_iter}
+    \input{figs/MazuModel2/geosx/scaling/weak/mech/mpi_iter.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/mech/mpi_time}
+    \input{figs/MazuModel2/geosx/scaling/weak/mech/mpi_time.tex}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/flow/mpi_iter}
+    \input{figs/MazuModel2/geosx/scaling/weak/flow/mpi_iter.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/flow/mpi_time}
+    \input{figs/MazuModel2/geosx/scaling/weak/flow/mpi_time.tex}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/poro/mpi_iter}
+    \input{figs/MazuModel2/geosx/scaling/weak/poro/mpi_iter.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/weak/poro/mpi_time}
+    \input{figs/MazuModel2/geosx/scaling/weak/poro/mpi_time.tex}
+  \end{subfigure}
+  \caption[Test case 2 weak scaling]{Test case 2 weak scaling: iterations and setup/solve times for multi-node runs for geomechanics (top), single-phase flow (middle) and poromechanics (bottom) problems.}
+  \label{fig:mazumodel2_scaling_weak}
+\end{figure}
+
+\paragraph{Geomechanics}
+The problem size is approximately 47k DoF/core in this test.   Even though the number of Krylov iterations is higher for MS solver, it remains roughly constant with as problem size is scaled up, indicating excellent algorithmic scalability, while it increases moderately for AMG.   Multiscale setup is initially more expensive than AMG, but has comparable cost on 64 nodes due to better scaling.   The solution phase exhibits similar scaling between the two methods.
+
+\paragraph{Flow}
+The problem size in this experiment is 91 k DoF/core.   As the plot indicates, MS solver requires a much higher number of iterations than AMG.   This is consistent with similar observation of Test Case 1, and we can conclude that AMG's choice of coarse spaces remains superior for the flow problem on unstructured grid.   We note that using matrix-based graph weighting \cref{eq:graph_matrix_weights} here gives a modest improvement, but occasionally results in poorly-shaped cell aggregates that present a problem for basis support region construction algorithms; therefore we have not employed it in this test.   Nevertheless, multiscale achieves comparable scalability for both setup and solve phases (if iteration increase is taken into account).
+
+\paragraph{Poromechanics}
+The problem size is 138k DoF/core for this test.   The iteration count exhibits moderate growth for AMG (driven by the mechanics sub-problem), and remains constant for MS (although still twice as high as AMG).   MS setup phase is slightly more expensive, once again due to extra work associated with extracting and recombining the matrix blocks at every level, but has comparable or better scaling than AMG.   Solution time is higher due to iteration count, but the cost per iteration is lower and the scalability trend is somewhat more favorable for multiscale.
 
 \subsection{Strong Scaling}
 \label{subsec:par_scaling_strong}
@@ -612,7 +673,7 @@ Next we consider strong scaling experiments, in which additional computational p
 Two mesh resolutions are used for each of the two scaling studies: \numproduct{100x100x100} (3.1M DoF) and \numproduct{140x140x140} (8.4M DoF) for multicore tests; \numproduct{200x200x200} (24.3M DoF) and \numproduct{280x280x280} (66.5M DoF) for multi-node tests.   Because of constraints imposed by GEOSX's memory footprint, some of the higher-resolution models could only be run on a larger number of cluster nodes.
 
 \paragraph{Geomechanics}
-The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe that MS solver achieves strong scalability that is comparable to that of AMG, in particular scaling is observed on up to 16 cores on a single node and up to 32 and 64 nodes, respectively, in distributed memory setting.   Although direct timing comparison is not the goal here, we note that for all runs MS tends to be on par or up to 1.5x faster than AMG for the mechanics problem.   The reason for that is that multiscale solver is able to achieve essentially the same convergence rate as AMG with a much shallower grid hierarchy, while simultaneously avoiding the growth of stencil size (numer of nonzeros per row), as evident from \cref{fig:cart_grid_hiearchies} which lists the grid dimensions across levels for both multilevel solvers for the largest grid resolution.   AMG solvers support aggressive coarsening strategies, but they typically lead to a reduction of convergence rate, and in our experiments did not yield significant advantages.
+The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe that MS solver achieves strong scalability that is comparable to that of AMG, in particular scaling is observed on up to 16 cores on a single node and up to 32 and 64 nodes, respectively, in distributed memory setting.   Although direct timing comparison is not the goal here, we note that for all runs MS tends to be on par or up to 1.5x faster than AMG for the mechanics problem.   The reason for that is that multiscale solver is able to achieve essentially the same convergence rate as AMG with a much shallower grid hierarchy, while simultaneously avoiding the growth of stencil size (numer of nonzeros per row), as evident from \cref{fig:cart_grid_hierarchies} which lists the grid dimensions across levels for both multilevel solvers for the largest grid resolution.   AMG solvers support aggressive coarsening strategies, but they typically lead to a reduction of convergence rate, and in our experiments did not yield significant advantages.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -623,7 +684,6 @@ The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe th
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    %\remake
     \tikzsetnextfilename{figs/Cart/scaling/strong/mech/omp_140x140x140_time}
     \input{figs/Cart/scaling/strong/mech/omp_140x140x140_time.tex}
   \end{subfigure}
@@ -638,7 +698,7 @@ The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe th
     \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/mech/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian geomechanics example strong scaling]{3D Cartesian geomechanics example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \caption[Test case 1 geomechanics problem strong scaling]{Test case 1 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_strong_mech}
 \end{figure}
 
@@ -696,12 +756,12 @@ The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe th
     \end{tabular}
     \caption{MS grid hierarchy}
   \end{subfigure}
-  \caption[3D Cartesian geomechanics example grid hierarchies]{3D Cartesian geomechanics example grid hierarchies for the \numproduct{280x280x280} grid.   $C_s^l$ is the average stencil (number of nonzeros per matrix row) and $C_r^l$ is the coarsening ratio at level $l$.}
-  \label{fig:cart_grid_hiearchies}
+  \caption[Test case 1 geomechanics problem grid hierarchies]{Test case 1 geomechanics problem AMG and MS grid hierarchies for the \numproduct{280x280x280} grid.   $C_s^l$ is the average stencil (number of nonzeros per matrix row) and $C_r^l$ is the coarsening ratio at level $l$.}
+  \label{fig:cart_grid_hierarchies}
 \end{figure}
 
 \paragraph{Flow}
-The timings for this problem are presented in \cref{fig:cart_scaling_strong_flow}.   For multicore tests, scaling up to 8 cores is observed, with no further improvement going up the the full 24 cores.
+The timings for this problem are presented in \cref{fig:cart_scaling_strong_flow}.   For multicore tests, scaling up to 8 cores is observed, with no significant improvement going up the the full 24 cores for either of the two resolutions.   This is due to the fact the main computation kernels of the MS setup and solve state --- SpMM and SpMV, respectively --- while parallelizable, are essentially memory bound, so memory bandwidth becomes the bottleneck once a sufficient number of cores are involved.    In addition, a slight increase in iteration count due to smoother degradation with high core count also contributes to increased solution time.   Similar results are ovbserved for AMG, although its setup is has a slightly better scaling behavior.   In multi-node expermiments both solvers exhibit relatively good scaling up to 32 nodes; beyond that the problem size per rank becomes too small and communication overhead dominates the runtime.   Higher number of iterations for the flow problem remains the reason for MS being the slower option overall, especially prominent in the distributed memory setup where additional iterations incur extra communication cost.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -726,12 +786,12 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_flow
     \tikzsetnextfilename{figs/Cart/scaling/strong/flow/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/flow/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian single-phase flow example strong scaling]{3D Cartesian single-phase flow example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \caption[Test case 1 single-phase flow problem strong scaling]{Test case 1 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_strong_flow}
 \end{figure}
 
 \paragraph{Poromechanics}
-The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro}.
+The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro}.   Similar to the mechanics and flow problems, strong scaling is observed up to 8 cores in shared memory and up to 32 nodes in distributed memory setting.   We note once again that high iteration count that is primarily driven by the flow sub-problem is the main reason for the relatively slow overall solution time of MS solver.   The effect is exacerbated for the coupled problem since every additional iteration incures a cost proportional to overall system size, which includes the mechanics sub-block.   Therefore any improvements designed to help the flow (e.g. improved coarsening strategies or specialized smoothers) should in principle also the coupled solver's performance to an even greater degree.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -742,7 +802,6 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro
   \hfill
   \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    %\remake
     \tikzsetnextfilename{figs/Cart/scaling/strong/poro/omp_140x140x140_time}
     \input{figs/Cart/scaling/strong/poro/omp_140x140x140_time.tex}
   \end{subfigure}
@@ -757,7 +816,7 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro
     \tikzsetnextfilename{figs/Cart/scaling/strong/poro/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/poro/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[3D Cartesian poromechanics example strong scaling]{3D Cartesian poromechanics example strong scaling: setup/solve times for multicore (top) and multi-node (bottom) parallelization.}
+  \caption[Test case 1 poromechanics problem strong scaling]{Test case 1 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_strong_poro}
 \end{figure}
 
