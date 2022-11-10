@@ -670,7 +670,8 @@ The problem size is 138k DoF/core for this test.   The iteration count exhibits 
 Next we consider strong scaling experiments, in which additional computational power is added to a fixed problem size leading to a reduction in solution time.   Measure of parallel efficiency here is the ratio of the ''ideal'' time (i.e. single core/node time divided by the number of cores/nodes used assuming perfect scaling) to achieved time.   It begins to drop as more processors are added and problem size per processing unit decreases, leading to less effective utilization of compute resources.    We will once again consider separate multicore and multi-node scaling separately, choose an appropriate problem size(s) for each and compare the results to those of classical AMG.
 
 \subsubsection{Test Case 1}
-Two mesh resolutions are used for each of the two scaling studies: \numproduct{100x100x100} (3.1M DoF) and \numproduct{140x140x140} (8.4M DoF) for multicore tests; \numproduct{200x200x200} (24.3M DoF) and \numproduct{280x280x280} (66.5M DoF) for multi-node tests.   Because of constraints imposed by GEOSX's memory footprint, some of the higher-resolution models could only be run on a larger number of cluster nodes.
+
+Two mesh resolutions are used for each of the two scaling studies: \numproduct{100x100x100} and \numproduct{140x140x140} for shared memory tests; \numproduct{200x200x200} and \numproduct{280x280x280} for distributed memory tests.   See \cref{tab:cart_dims} for corresponding problem sizes (numbers of unknowns).   Because of constraints imposed by GEOSX's memory footprint, some of the higher-resolution models could only be run on a larger number of cluster nodes.
 
 \paragraph{Geomechanics}
 The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe that MS solver achieves strong scalability that is comparable to that of AMG, in particular scaling is observed on up to 16 cores on a single node and up to 32 and 64 nodes, respectively, in distributed memory setting.   Although direct timing comparison is not the goal here, we note that for all runs MS tends to be on par or up to 1.5x faster than AMG for the mechanics problem.   The reason for that is that multiscale solver is able to achieve essentially the same convergence rate as AMG with a much shallower grid hierarchy, while simultaneously avoiding the growth of stencil size (numer of nonzeros per row), as evident from \cref{fig:cart_grid_hierarchies} which lists the grid dimensions across levels for both multilevel solvers for the largest grid resolution.   AMG solvers support aggressive coarsening strategies, but they typically lead to a reduction of convergence rate, and in our experiments did not yield significant advantages.
@@ -819,6 +820,95 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro
   \caption[Test case 1 poromechanics problem strong scaling]{Test case 1 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
   \label{fig:cart_scaling_strong_poro}
 \end{figure}
+
+\subsubsection{Test Case 1}
+
+We use grid resolution 3 (see \cref{tab:mazumodel2_par_dims}) for shared memory tests and resolutions 4 and 5 for distributed memory.   Once again, the number of nodes to run on is dictated by the memory requirements of GEOSX which must maintain a large working set for general-purpose simulation.
+
+\paragraph{Geomechanics}
+The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_mech}.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/mech/omp_3_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/mech/omp_3_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+  \hspace{\textwidth}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/mech/mpi_4_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/mech/mpi_4_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/mech/mpi_5_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/mech/mpi_5_time.tex}
+  \end{subfigure}
+  \caption[Test case 2 geomechanics problem strong scaling]{Test case 2 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \label{fig:mazumodel2_scaling_strong_mech}
+\end{figure}
+
+\paragraph{Flow}
+The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_flow}.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/flow/omp_3_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/flow/omp_3_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+  \hspace{\textwidth}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/flow/mpi_4_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/flow/mpi_4_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/flow/mpi_5_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/flow/mpi_5_time.tex}
+  \end{subfigure}
+  \caption[Test case 2 single-phase flow problem strong scaling]{Test case 2 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \label{fig:mazumodel2_scaling_strong_flow}
+\end{figure}
+
+\paragraph{Poromechanics}
+The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_poro}.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/poro/omp_3_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/poro/omp_3_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+  \hspace{\textwidth}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/poro/mpi_4_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/poro/mpi_4_time.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/poro/mpi_5_time}
+    \input{figs/MazuModel2/geosx/scaling/strong/poro/mpi_5_time.tex}
+  \end{subfigure}
+  \caption[Test case 2 poromechanics problem strong scaling]{Test case 2 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \label{fig:mazumodel2_scaling_strong_poro}
+\end{figure}
+
 
 \subsection{Optimal Parameters Choices}
 
