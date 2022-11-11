@@ -221,7 +221,7 @@ Pre- and post-smoothers can be selected independently and either of them can be 
 \subsubsection{Grid Transfer}
 \label{subsec:par_kernels_apply_transfer}
 
-Residual restriction, interpolation of coarse-grid error correction and residual update after smoothing are the remaining operations of the solution phase.   All of them are straightforward SpMV kernels (or transpose-SpMV in case of restriction) that are known to be relatively scalable on modern architectures and have highly optimized implementations in linear algebra libraries (e.g. overlapping computation and communication is commonly done).   Overall they take a relatively minor portion of execution time.
+Residual restriction, interpolation of coarse-grid error correction and residual update after smoothing are the remaining operations of the solution phase.   All of them are straightforward SpMV kernels (or transpose-SpMV in case of restriction) that are known to be relatively scalable on modern architectures and have highly optimized implementations in linear algebra libraries (e.g. overlapping computation and communication is commonly done).   The prolongation step is much more efficient due to the fine-grained parallelism exposed by a large number of rows of $P$ in row-major storage.   Restriction on the other hand must rely on atomic operations to accumulate contributions to entries of the (small) output vector.   Overall however they both take a relatively minor portion of execution time.
 
 % ===================== SECTION =====================
 \section{Performance Characteristics}
@@ -699,7 +699,7 @@ The timings are reported in \cref{fig:cart_scaling_strong_mech}.   We observe th
     \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/mech/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[Test case 1 geomechanics problem strong scaling]{Test case 1 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 1 geomechanics problem strong scaling]{Test case 1 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:cart_scaling_strong_mech}
 \end{figure}
 
@@ -787,12 +787,12 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_flow
     \tikzsetnextfilename{figs/Cart/scaling/strong/flow/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/flow/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[Test case 1 single-phase flow problem strong scaling]{Test case 1 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 1 single-phase flow problem strong scaling]{Test case 1 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:cart_scaling_strong_flow}
 \end{figure}
 
 \paragraph{Poromechanics}
-The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro}.   Similar to the mechanics and flow problems, strong scaling is observed up to 8 cores in shared memory and up to 32 nodes in distributed memory setting.   We note once again that high iteration count that is primarily driven by the flow sub-problem is the main reason for the relatively slow overall solution time of MS solver.   The effect is exacerbated for the coupled problem since every additional iteration incures a cost proportional to overall system size, which includes the mechanics sub-block.   Therefore any improvements designed to help the flow (e.g. improved coarsening strategies or specialized smoothers) should in principle also the coupled solver's performance to an even greater degree.
+The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro}.   Strong scaling is observed up to 8 cores in shared memory and up to 64 nodes in distributed memory setting.   We note once again that high iteration count that is primarily driven by the flow sub-problem is the main reason for the relatively slow overall solution time of MS solver.   The effect is exacerbated for the coupled problem since every additional iteration incures a cost proportional to overall system size, including the mechanics sub-block that accounts for over three quarters of it.   Therefore any improvements designed to help the flow (e.g. improved coarsening strategies or specialized smoothers) should in principle also aid the coupled solver's performance to an even greater degree.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -817,16 +817,16 @@ The timings for this problem are presented in \cref{fig:cart_scaling_strong_poro
     \tikzsetnextfilename{figs/Cart/scaling/strong/poro/mpi_280x280x280_time}
     \input{figs/Cart/scaling/strong/poro/mpi_280x280x280_time.tex}
   \end{subfigure}
-  \caption[Test case 1 poromechanics problem strong scaling]{Test case 1 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 1 poromechanics problem strong scaling]{Test case 1 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:cart_scaling_strong_poro}
 \end{figure}
 
-\subsubsection{Test Case 1}
+\subsubsection{Test Case 2}
 
-We use grid resolution 3 (see \cref{tab:mazumodel2_par_dims}) for shared memory tests and resolutions 4 and 5 for distributed memory.   Once again, the number of nodes to run on is dictated by the memory requirements of GEOSX which must maintain a large working set for general-purpose simulation.
+We use grid resolution 3 (see \cref{tab:mazumodel2_par_dims}) for shared memory tests and resolutions 4 and 5 for distributed memory.   Once again, the number of compute nodes to run on is dictated by the memory requirements of GEOSX which must maintain a large working set for general-purpose simulation.
 
 \paragraph{Geomechanics}
-The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_mech}.
+The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_mech}. Reasonable overall strong scaling is observed up to 16 cores, although the MS setup phase has limited scaling compared to AMG beyond 4 cores.   Solve phase scaling for both solvers is affected by the increase in iteration count related to the hybrid smoother (from 34 to 64 for MS and from 26 to 35 for AMG) even as cost per iteration continues to scale up to 24 cores.   In distributed memory setting, the problem scales well up to 64 nodes, even as per core problem size drops below 10k DoF.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -849,12 +849,12 @@ The timings for this problem are presented in \cref{fig:mazumodel2_scaling_stron
     \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/mech/mpi_5_time}
     \input{figs/MazuModel2/geosx/scaling/strong/mech/mpi_5_time.tex}
   \end{subfigure}
-  \caption[Test case 2 geomechanics problem strong scaling]{Test case 2 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 2 geomechanics problem strong scaling]{Test case 2 geomechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:mazumodel2_scaling_strong_mech}
 \end{figure}
 
 \paragraph{Flow}
-The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_flow}.
+The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_flow}.   We observe a similar trend of scaling up to 16 cores in shared memory and 32-64 nodes (depending on the problem) in distributed memory.   Notably, the solve phase of MS exhibits poor scaling between 32 and 64 nodes, especially for the smaller problem on grid 4, which be attributed to the use of a serial (single-rank) coarse level solver.   The setup phase, on the other hand, scales almost perfectly on multiple nodes, but worse in multicore setting.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -877,12 +877,12 @@ The timings for this problem are presented in \cref{fig:mazumodel2_scaling_stron
     \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/flow/mpi_5_time}
     \input{figs/MazuModel2/geosx/scaling/strong/flow/mpi_5_time.tex}
   \end{subfigure}
-  \caption[Test case 2 single-phase flow problem strong scaling]{Test case 2 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 2 single-phase flow problem strong scaling]{Test case 2 single-phase flow problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:mazumodel2_scaling_strong_flow}
 \end{figure}
 
 \paragraph{Poromechanics}
-The timings for this problem are presented in \cref{fig:mazumodel2_scaling_strong_poro}.
+The timings for this problem are shown in \cref{fig:mazumodel2_scaling_strong_poro}.   The scaling trends are generally similar to both mechanics and flow problems.   A relatively high number of Krylov iterations (a factor of 2.5x) makes coupled multiscale a slower option compared to fixed-stress preconditioner with AMG sub-block solvers.
 
 \begin{figure} [htbp]
   \begin{subfigure}[t]{0.48\textwidth}
@@ -905,13 +905,73 @@ The timings for this problem are presented in \cref{fig:mazumodel2_scaling_stron
     \tikzsetnextfilename{figs/MazuModel2/geosx/scaling/strong/poro/mpi_5_time}
     \input{figs/MazuModel2/geosx/scaling/strong/poro/mpi_5_time.tex}
   \end{subfigure}
-  \caption[Test case 2 poromechanics problem strong scaling]{Test case 2 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) parallelization.}
+  \caption[Test case 2 poromechanics problem strong scaling]{Test case 2 poromechanics problem strong scaling: setup/solve times for shared memory (top) and distributed memory (bottom) tests.}
   \label{fig:mazumodel2_scaling_strong_poro}
 \end{figure}
 
+\subsection{Discussion}
 
-\subsection{Optimal Parameters Choices}
+The performance results obtained indicate that multilevel multiscale solver achieves reasonably good implementation scalability up to 8-16 cores on a single machine and on up to 32 cluster nodes.   An example breakdown of setup and solve phase times into main computational kernels is shown in \cref{fig:cart_scaling_strong_mech_kernels} for two resolutions the geomechanical problem of test case 1, on shared and distributed memory systems.
+
+\begin{figure} [htbp]
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/omp_100x100x100_kernels_setup}
+    \input{figs/Cart/scaling/strong/mech/omp_100x100x100_kernels_setup.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/omp_100x100x100_kernels_solve}
+    \input{figs/Cart/scaling/strong/mech/omp_100x100x100_kernels_solve.tex}
+  \end{subfigure}
+  \pgfplotsset{
+    StrongScalingKernelPlot/.append style = { enlarge x limits = 0.3 },
+  }
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_280x280x280_kernels_setup}
+    \input{figs/Cart/scaling/strong/mech/mpi_280x280x280_kernels_setup.tex}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \tikzsetnextfilename{figs/Cart/scaling/strong/mech/mpi_280x280x280_kernels_solve}
+    \input{figs/Cart/scaling/strong/mech/mpi_280x280x280_kernels_solve.tex}
+  \end{subfigure}
+  \caption[Test case 1 geomechanics problem kernel scaling]{Test case 1 geomechanics problem strong scaling by kernel: setup/solve times for one shared memory (top) and one distributed memory (bottom) tests.}
+  \label{fig:cart_scaling_strong_mech_kernels}
+\end{figure}
+
+A major bottleneck to further scaling the setup phase on shared-memory architectures is currently the matrix filtering routine which is not implemented optimally in our code and involves a large amount of index sorting and data movement while almost not using any floating point operations.   Another factor is the fact that main computation kernel of the restricted smoothing process --- sparse matrix-matrix multiply --- becomes limited by available memory bandwidth.   Unlike more specialized representations suitable for structured grids (such as banded matrices used e.g. in \cite{Manea2015,Manea2016}), general sparse matrix kernels exhibit low  arithmetic intensity (the amount of compute per byte read from memory) and irregular memory access patterns.    However, setup phase generally takes a smaller portion of the overall linear solver time, especially for the more challenging flow and coupled poromechanical problems.
+
+On distributed memory systems, on the other hand, setup phase scales well, but the solution phase tends to start losing scalability after 32 nodes, compared to AMG.   This can be explaned by the fact that our implementation currently does not redistribute the system to a smaller number of machines at coarser levels, which is a technique employed by all state-of-the-art AMG solvers.   In combination with very aggressive coarsening ratios we use, the amount of work per machine decreases rapidly beyond the fine level while the communication latencies remain.   Unlike in most previously reported two-level multiscale methods, in our multilevel method the coarsest-level system is very small and is solved in serial, but the right-hand side for it must be gathered on every iteration from a large number of machines it is distributed on after the down-phase ov the V-cycle (and similarly the solution must be scattered), which again involves communication latencies that often lead to noticeable variations in cost per iteration.   Equipping our multilevel strategy with a redistribution mechanism at every level (which requires transferring the mesh data structure along with matrix chunks) should improve the solution phase scaling.
+
+Finally, while out multiscale solver reaches performance comparable to state-of-the-art AMG methods in solving geomechanical problems, reducing the iteration count for the flow problem remains a challenge that must be addressed in order to build a truly scalable multiscale framework.   One possible direction is to pursue improvements in the construction of cell aggregates, perhaps using the concept of strength of connection based coarsening from aggregation-based AMG (some results in that direction have been reported in \cite{Nilsen2020}).   While our matrix-based graph weighting scheme attempts to achieve a similar goal, it is a more ad-hoc approach without a strong theoretical basis.   At the same time, constructing support regions with matching boundaries that avoid stencil growth might become more difficult if aggregates are too small or poorly shaped.
+
+For coupled systems, a thorough investigation into optimal set of multiscale method parameters for both sub-problems is required.   In this work, we have determined approximately optimal settings separately for each physics and simply used the combination in the coupled solver.   However, given the different relative costs and trade-offs, the best set of options is likely to vary.   For example, if convergence of the coupled problem is controlled largely by one sub-problem (flow), we might use a relaxed set of parameters for the other sub-problem (mechanics), such as more aggressive coarsening ratio or a cheaper smoother (e.g. Jacobi), in order to reduce cost per iteration without sacrificing the overall convergence.   The parameter space of such an investigation is very large and fell beyond the scope of present work.   Additionally, the benefits and drawbacks of a coupled multiscale hierarchy must be investigated.   Our decision to develop a coupled MS solver was dictated early on by results indicating this scheme leads to a lower number of iterations.   However, in a parallel implementation it may not necessarily have an advantage, due to higher cost per iteration.   For example, \cref{tab:cart_coupled_solvers} summarizes the iteration counts and timings for the poromechanical problem of test case 1.   For both resolutions considered a fixed-stress decoupling at the fine level (''Block + MS'') leads to a scheme with same or better overall runtime than the coupled MS approach, despite a higher number of iterations.
+
+\begin{table}
+    \centering
+    \caption[Coupled solver comparison]{Coupled solver comparison using the poromechanics problem of test case 1.   Block refers to the block-triangular preconditioner with different choices of sub-block solvers.  All times are in seconds.}
+    \label{tab:cart_coupled_solvers}
+    \begin{tabular}{lrrrrrrrrrr}
+      \hline\noalign{\smallskip}
+      \multirow{2}{*}{Solver} & & \multicolumn{4}{c}{\numproduct{100x100x100} grid, 24 cores} & & \multicolumn{4}{c}{\numproduct{200x200x200} grid, 8 nodes} \\
+      \noalign{\smallskip}\cline{3-6} \cline{8-11}\noalign{\smallskip}
+      & & $n_{\text{iter}}$ & $T_{\text{setup}}$ & $T_{\text{solve}}$ & $T_{\text{total}}$ & & $n_{\text{iter}}$ & $T_{\text{setup}}$ & $T_{\text{solve}}$ & $T_{\text{total}}$ \\
+      \hline\noalign{\smallskip}
+			Block + AMG & &  41 &  7.7 & 24.3 & 32.0 & &  44 & 21.3 &  59.7 &  81.0 \\
+			Block + MS  & & 128 &  8.8 & 61.5 & 70.3 & & 158 & 22.7 & 134.1 & 156.9 \\
+			Coupled MS  & &  84 & 13.7 & 55.5 & 69.2 & & 131 & 39.0 & 149.7 & 188.7 \\
+      \hline\noalign{\smallskip}
+    \end{tabular}
+\end{table}
+
+% \subsection{Optimal Parameters Choices}
 
 % ===================== SECTION =====================
 \section{Summary}
 \label{sec:par_summary}
+
+In this chapter we have described our work on the implementation of a parallel multilevel multiscale solver within the GEOSX computational framework.   Several design choices related to representation of mesh data structures and linear operators have been motivated, with particular attention to how we made effective use of parallel programming facilities available in GEOSX.   We have detailed the parallelization approaches to the major custom computational kernels of our multiscale algorithms, as well as how we take advantage of third-party libraries to build an efficient framework that can interoperate with multiple linear algebra backends.   A simplified analysis of the theoretical runtime characteristics (measured through floating point operations performed) is provided.   Finally, we have investigated strong and weak scalability of our parallel implementation using a set of heterogenenous geomechanical and single-phase flow and poromechanical problems in comparison with a state-of-the-art algebraic multigrid solver.   Our multiscale solver achieves good scaling (comparable to that of AMG) on up to 16 shared memory cores and up to 32 distributed memory cluster nodes.   For geomechanical problems is also a competitive alternative to AMG in terms of overall runtime.   We have discussed some bottlenecks of the current implementation and possible directions of investigation and improvement with regard to performance on flow and coupled poromechanical problems.

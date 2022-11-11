@@ -170,6 +170,25 @@
     }
 }
 
+\pgfplotsset{
+    StrongScalingKernelPlot/.style = {
+        width = \textwidth,
+        height = \textwidth,
+        ybar stacked,
+        ymajorgrids,
+        ymin = 0,
+        major grid style = {very thin, draw=gray!50},
+        ylabel = {Time (s)},
+        xtick = data,
+        tick style={draw=none},
+        %cycle list name = color list,
+        bar width = 10pt,
+        legend pos = north east,
+        legend cell align = {left},
+        legend style = {font = \footnotesize}
+    }
+}
+
 % Command needed to make grouped stacked bar charts
 \makeatletter
 \newcommand{\resetstackedplots}{

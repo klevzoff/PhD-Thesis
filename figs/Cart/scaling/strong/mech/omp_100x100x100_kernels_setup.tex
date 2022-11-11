@@ -1,0 +1,29 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ StrongScalingKernelPlot,
+        symbolic x coords = {1,2,4,8,16,24},
+        xtick = {1,2,4,8,16,24},
+        title = {setup, \numproduct{100x100x100} grid},
+        xlabel = {Number of cores} ]
+      \addplot+[]
+               table[x=cores, y=matrix]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Filtering}
+      \addplot+[]
+               table[x=cores, y=iterate]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Smoothing iteration}
+      \addplot+[]
+               table[x=cores, y=coarsening]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Coarsening}
+      \addplot+[]
+               table[x=cores, y=galerkin]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{RAP}
+      \addplot+[]
+               table[x=cores, y=csolver]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Coarse LU}
+    \end{axis}
+\end{tikzpicture}

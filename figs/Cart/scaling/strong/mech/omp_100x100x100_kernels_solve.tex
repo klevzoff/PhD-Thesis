@@ -1,0 +1,29 @@
+\begin{tikzpicture}
+    \begin{axis}
+      [ StrongScalingKernelPlot,
+        symbolic x coords = {1,2,4,8,16,24},
+        xtick = {1,2,4,8,16,24},
+        title = {solve, \numproduct{100x100x100} grid},
+        xlabel = {Number of cores} ]
+      \addplot+[]
+               table[x=cores, y=smoother]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Smoother}
+      \addplot+[]
+               table[x=cores, y=residual]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Residual}
+      \addplot+[]
+               table[x=cores, y=prolongation]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Prolongation}
+      \addplot+[]
+               table[x=cores, y=restriction]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Restriction}
+      \addplot+[]
+               table[x=cores, y=csolve]
+               {results/mazama/hypre/scaling/strong/Cart/mech/ms/omp/100x100x100/kernels.csv};
+      \addlegendentry{Coarse solve}
+    \end{axis}
+\end{tikzpicture}
