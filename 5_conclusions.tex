@@ -5,5 +5,22 @@
 % ===================== SECTION =====================
 \section{Summary of Present Work}
 
+This work addresses the development of a multilevel multiscale preconditioning framework for problems of geomechanics, porous media flow and coupled poromechanics on general (unstructured) polyhedral grids, with the goal of accelerating solutions of large and ill-conditioned linear systems arising in subsurface applications such as modeling of geological carbon storage, geothermal energy systems, oil and gas reservoirs and other, leading to faster simulation turnaround times without sacrificing model fidelity and improving the decision making process in these applications.   Multiscale methods both have enjoyed a lot of success as fast approximate solvers, and have been shown to be excellent candidates for efficient and scalable preconditioners for elliptic linear systems.
+
+In \cref{ch:multiscale_poromechanics}, after briefly reviewing previous work on multiscale methods, we conclude that Multiscale Restriction-Smoothed Basis (MsRSB) is an excellent candidate for further development.   We further adapt the method to some discretizations of interest by introducing a matrix filtering strategy designed to ensure convergence of the basis function iterative computation.   The rest of the chapter deals with the development of the multiscale framework, specifically the multilevel grid representation and unstructured coarsening algorithms and construction of basis function supports for both nodal and cell-centered unknowns.   We extend the method to coupled systems of equations such as single-phase poromechanics by employing a combination of block-diagonal grid transfer operators and a block-triangular local smoother.   Further extension to multiphase poromechanics is proposed based on two different reduction strategies.   Several two- and three-dimensional problems are used to validate our method and demonstrate its robustness.   The extension of MsRSB to geomechanics/poromechanics and its formulation as a truly multilevel framework suitable for arbitrary grids both constitute novel contributions of our work.
+
+\Cref{ch:geosx_framework} describes the design and several components of GEOSX, a high-performance multiphysics simulation framework developed collectively by several groups, to which we have made several contributions, futher detailed in the chapter, including a GPU-accelerated multicomponent multiphase flow and transport solver and components of a linear algebra framework that interfaces with several external libraries of linear solvers and preconditioners.   The latter serves as the foundation for the parallel implementation of our multiscale method.
+
+Finally, \cref{ch:parallel_multiscale} investigates the performance and scalability of the proposed multiscale solver in shared and distributed memory parallel settings.   To this end, we develop an optimized implementation that both reuses high-performance matrix and vector kernels from a given linear algebra backend and employs the parallel programming features of GEOSX to accelerate the construction of the multilevel hierarchy.   The implementation is used to demonstrate parallel scalability of the method and compare it to an algebraic multigrid solver.   We observe good weak and strong scaling on both modern multicore CPU architectures and multi-node compute clusters using a series of structured and unstructured benchmark problems.   This study also highlights some limitations of our implementation and suggests further improvements to the method are necessary, in particular for the flow problem.
+
 % ===================== SECTION =====================
 \section{Future Work}
+
+TODO possible directions:
+\begin{itemize}
+  \item Improvements for flow/coupled problems
+  \item Better scaling through system redistribution
+  \item GPU-accelerated tests
+  \item Multiphase problems
+  \item Additional physics + fractures?
+\end{itemize}
