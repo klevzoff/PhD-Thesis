@@ -50,7 +50,7 @@ Here $b$ is Biot's coefficient (assumed constant and equal to 1 for incompressib
     \rho_f &= \rho_f(p), \: \mu = \mu(p) & & \mbox{ (fluid model) } \label{eq:constitutive_fluid} \\
     \tensorTwo{k} &= \tensorTwo{k}(p,\tensorTwo{\varepsilon},\phi) & & \mbox{ (permeability model) } \label{eq:constitutive_permeability}
 \end{align}
-where $\tensorTwo{\varepsilon} = \nabla^s \vec{u}$ is the second-order strain tensor with $\varepsilon_v = \frac{1}{3}\Trace(\tensorTwo{\varepsilon})$ the volumetric strain, $\tensorTwo{k}$ is the second-order symmetric permeability tensor and $\mu$ is the fluid viscosity.   A commonly used model is linear poroelasticity, which reads
+where $\tensorTwo{\varepsilon} = \nabla^s \vec{u}$ is the second-order strain tensor with $\varepsilon_v = \Trace(\tensorTwo{\varepsilon})$ the volumetric strain, $\tensorTwo{k}$ is the second-order symmetric permeability tensor and $\mu$ is the fluid viscosity.   A commonly used model is linear poroelasticity, which reads
 \begin{align}
     \tensorTwo{\sigma} &= \tensorFour{C} : \tensorTwo{\varepsilon} \\
     \phi &= \phi_0 + \frac{(1 - b)(b - \phi_0)}{K_{dr}}(p - p_0) + b\varepsilon_v \\
@@ -116,7 +116,7 @@ Here $\mathcal{M}^{-1}$ is a linear operator that approximates $A^{-1}$ (i.e. $\
 \begin{align}
     \|\vec{x}^* - \vec{x}^k\|_A \leq 2\frac{\sqrt{\kappa} - 1}{\sqrt{\kappa} + 1} \|\vec{x}^* - \vec{x}^0\|_A
 \end{align}
-with $\kappa = \lambda_{\max}/\lambda_{\min}$ the condition number of $\mathcal{M}^{-1}A$ (or $A\mathcal{M}^{-1}$), which implies that convergence is faster when $\kappa \to 1$.   Methods for general non-symmetric matrices do not have such straightforward estimates, but their convergence rate is related to how well the eigenvalues of preconditioned matrix are clustered together \cite{Saad2003}.
+with $\kappa = \lambda_{\max}/\lambda_{\min}$ the condition number of $\mathcal{M}^{-1}A$ (or $A\mathcal{M}^{-1}$), which implies that convergence is faster when $\kappa \to 1$.   Here $\vec{x}^*$ is the (unknown) true solution and $\|\vec{u}\|_A = (\vec{u},A\vec{u})^{\frac{1}{2}}$ is the energy norm.   Methods for general non-symmetric matrices do not have such straightforward estimates, but their convergence rate is related to how well the eigenvalues of preconditioned matrix are clustered together \cite{Saad2003}.
 
 In practice the systems \crefrange{eq:prec_left}{eq:prec_right} are not constructed explicitly, but the action of preconditioning operator on vectors is incorporated in the iteration alongside the application of system matrix $A$, this $\mathcal{M}^{-1}$ can be any approximate solver of the original system.   In the solver workflow, $\mathcal{M}^{-1}$ is computed once for a given matrix $A$ and then repeatedly applied to vectors during iterations.   The challenge of designing a preconditioner is thus in finding an optimal balance between numerical robustness (the number of iterations of the iterative solver) and computational cost of computing and applying the operator.
 
